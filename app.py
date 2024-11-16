@@ -130,12 +130,13 @@ def main():
                             st.image(image, width=200)
                 
                 with col2:
-                    # Edit last worn date
+                    # Add unique key for date_input using item ID
                     current_last_worn = datetime.fromisoformat(item["last_worn"])
                     new_last_worn = st.date_input(
                         "Last worn date",
                         value=current_last_worn.date(),
-                        max_value=datetime.now().date()
+                        max_value=datetime.now().date(),
+                        key=f"date_{item['id']}_{item['collection']}"  # Added unique key
                     )
                     
                     # Calculate days remaining
@@ -144,7 +145,7 @@ def main():
                     
                     st.warning(f"⏳ {days_remaining} days remaining")
                     
-                    # Update button
+                    # Update button (already has unique key)
                     if st.button("Update", key=f"update_{item['id']}"):
                         item["last_worn"] = datetime.combine(
                             new_last_worn, 

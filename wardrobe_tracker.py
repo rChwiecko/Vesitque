@@ -23,7 +23,7 @@ class WardrobeTracker:
     def __init__(self, feature_extractor):
         self.feature_extractor = feature_extractor
         self.db_path = Path("clothing_database.json")
-        self.similarity_threshold = 0.70
+        self.similarity_threshold = 0.80
         self.reset_period = 7  # Days before an outfit can be worn again
         self.database = self.load_database()
         
