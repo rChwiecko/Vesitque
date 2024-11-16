@@ -131,7 +131,26 @@ class WardrobeTracker:
             ax.bar(range(top_n), top_values)
             ax.set_title("Top Feature Values")
             st.pyplot(fig)
-
+    def add_new_item(self, image, item_type, is_outfit=False, name=None):
+        """Add new item with 7-day countdown"""
+        features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
+        if features is not None:
+            collection = "outfits" if is_outfit else "items"
+            new_item = {
+                "id": len(self.database[collection]),
+                "type": item_type,
+                "name": name or item_type,
+                "features": features.tolist(),
+                "last_worn": datetime.now().isoformat(),
+                "image": self.image_to_base64(image),
+                "reset_period": 7  # Start with 7-day countdown
+            }
+            
+            self.database[collection].append(new_item)
+            self.save_database()
+            return True
+        return False
+    
         # 4. Similarity Analysis (if there's a match)
         if matching_item is not None:
             st.write("### 🎯 Similarity Matching")
@@ -195,17 +214,15 @@ class WardrobeTracker:
             return None
 
     def add_demo_data(self):
-        """Add demo outfits with specific wear dates"""
-        # Create some sample outfit images with PIL
+        """Add demo outfits with specific wear dates and reset periods"""
         sample_colors = [(200, 150, 150), (150, 200, 150), (150, 150, 200)]
         demo_outfits = []
         
-        for i, (name, days_ago) in enumerate([
-            ("Casual Friday", 4),
-            ("Business Meeting", 6),
-            ("Weekend Style", 2)
+        for i, (name, days_ago, reset_period) in enumerate([
+            ("Casual Friday", 4, 4),
+            ("Business Meeting", 6, 4),
+            ("Weekend Style", 2, 4)
         ]):
-            # Create a sample image
             img = Image.new('RGB', (300, 400), sample_colors[i])
             
             demo_outfits.append({
@@ -213,11 +230,11 @@ class WardrobeTracker:
                 "name": name,
                 "type": "Full Outfit",
                 "last_worn": (datetime.now() - timedelta(days=days_ago)).isoformat(),
-                "features": [0] * 2048,  # Dummy features
-                "image": self.image_to_base64(img)
+                "features": [0] * 2048,
+                "image": self.image_to_base64(img),
+                "reset_period": reset_period  # Add custom reset period
             })
         
-        # Clear existing demo data
         self.database["outfits"] = []
         self.database["outfits"].extend(demo_outfits)
         self.save_database()
@@ -246,9 +263,8 @@ class WardrobeTracker:
                 self.display_item_card(item)
 
     def display_item_card(self, item):
-        """Display a single item/outfit card with image"""
+        """Display a single item/outfit card with image and countdown"""
         with st.container():
-            # Create a card-like container with border
             st.markdown("""
                 <style>
                 .clothing-card {
@@ -260,10 +276,8 @@ class WardrobeTracker:
                 </style>
             """, unsafe_allow_html=True)
             
-            # Get emoji for category
             emoji = self.clothing_categories.get(item.get('type', 'Other'), '👕')
             
-            # Display image if available
             if 'image' in item:
                 try:
                     image = self.base64_to_image(item['image'])
@@ -272,29 +286,24 @@ class WardrobeTracker:
                 except Exception:
                     st.image("placeholder.png", use_column_width=True)
             
-            # Item details
             st.markdown(f"### {emoji} {item.get('name', item['type'])}")
             
-            # Calculate days until reset
+            # Calculate days remaining (counting down from last wear)
             last_worn = datetime.fromisoformat(item["last_worn"])
             days_since = (datetime.now() - last_worn).days
-            days_until_reset = max(0, self.reset_period - days_since)
+            days_remaining = max(0, item.get('reset_period', 7) - days_since)
             
-            # Show reset timer
-            if days_until_reset > 0:
-                st.warning(f"⏳ {days_until_reset} days until reset")
-            else:
-                st.success("✅ Ready to wear!")
-            
+            st.warning(f"⏳ {days_remaining} days remaining")
             st.caption(f"Last worn: {last_worn.strftime('%Y-%m-%d')}")
 
+
+
     def process_image(self, image, is_outfit=False):
-        """Process image with improved visualization"""
+        """Process image with reset period that encourages wear"""
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
             return "error", None, 0
             
-        # Rest of the matching logic...
         items_to_check = self.database["outfits"] if is_outfit else self.database["items"]
         matching_item = None
         best_similarity = 0
@@ -307,24 +316,27 @@ class WardrobeTracker:
                 if similarity > self.similarity_threshold and similarity > best_similarity:
                     matching_item = item
                     best_similarity = similarity
-                        
             except Exception as e:
                 st.warning(f"Error comparing items: {str(e)}")
                 continue
 
-        # Show analysis visualization in debug mode only once after finding match
         if st.session_state.get('debug_mode', False):
             self.visualize_analysis(image, features, matching_item)
         
         if matching_item:
-            last_worn = datetime.fromisoformat(matching_item["last_worn"])
-            days_since_worn = (datetime.now() - last_worn).days
-            
-            if days_since_worn >= self.reset_period:
-                matching_item["last_worn"] = datetime.now().isoformat()
-                self.save_database()
-                return "existing", matching_item, best_similarity
-            else:
-                return "too_soon", matching_item, best_similarity
+            # Always update last worn and reset countdown to encourage wear
+            matching_item["last_worn"] = datetime.now().isoformat()
+            matching_item["reset_period"] = 7  # Reset back to 7 days
+            self.save_database()
+            return "existing", matching_item, best_similarity
                 
         return "new", None, 0
+    
+    def update_item_reset_period(self, item_id, new_reset_period, collection="items"):
+        """Update an item's reset period"""
+        for item in self.database[collection]:
+            if item['id'] == item_id:
+                item['reset_period'] = new_reset_period
+                self.save_database()
+                return True
+        return False

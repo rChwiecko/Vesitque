@@ -26,18 +26,18 @@ def main():
         debug_mode = st.checkbox("Debug Mode")
         st.session_state['debug_mode'] = debug_mode
 
-        # Global reset period setting
+        # Default reset period for new items
         st.divider()
-        st.subheader("Reset Period")
+        st.subheader("Default Reset Period")
         new_reset_period = st.number_input(
-            "Days until reset (default: 7)", 
+            "Days until reset for new items", 
             min_value=1, 
             max_value=30, 
             value=tracker.reset_period
         )
         if new_reset_period != tracker.reset_period:
             tracker.reset_period = new_reset_period
-            st.success(f"Reset period updated to {new_reset_period} days!")
+            st.success(f"Default reset period updated to {new_reset_period} days!")
 
     # Main content
     tab1, tab2, tab3 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe"])
@@ -68,8 +68,10 @@ def main():
                     st.write("Match details:", item)
                     
             elif status == "too_soon":
+                # Use item-specific reset period
+                reset_period = item.get('reset_period', tracker.reset_period)
                 days_since = (datetime.now() - datetime.fromisoformat(item["last_worn"])).days
-                days_remaining = max(0, tracker.reset_period - days_since)
+                days_remaining = max(0, reset_period - days_since)
                 st.warning(f"⚠️ This {item['type']} needs {days_remaining} more days to reset!")
                 
                 if 'image' in item:
@@ -108,7 +110,6 @@ def main():
     with tab3:
         st.subheader("Edit Wardrobe Items")
         
-        # Combine items and outfits for editing
         all_items = (
             [{"collection": "items", **item} for item in tracker.database["items"]] +
             [{"collection": "outfits", **outfit} for outfit in tracker.database["outfits"]]
@@ -137,30 +138,32 @@ def main():
                         max_value=datetime.now().date()
                     )
                     
-                    # Calculate and show days until reset
+                    # Calculate days remaining
                     days_since = (datetime.now().date() - new_last_worn).days
-                    days_until_reset = max(0, tracker.reset_period - days_since)
+                    days_remaining = max(0, 7 - days_since)
                     
-                    if days_until_reset > 0:
-                        st.warning(f"⏳ {days_until_reset} days until reset")
-                    else:
-                        st.success("✅ Ready to wear!")
+                    st.warning(f"⏳ {days_remaining} days remaining")
                     
                     # Update button
-                    if st.button("Update Date", key=f"update_{item['id']}"):
-                        # Update the item in the database
+                    if st.button("Update", key=f"update_{item['id']}"):
                         item["last_worn"] = datetime.combine(
                             new_last_worn, 
                             datetime.min.time()
                         ).isoformat()
                         
+                        # Always set reset_period to 7 when updating
+                        item["reset_period"] = 7
+                        
                         # Save to correct collection
-                        collection = item.pop('collection')  # Remove helper field
-                        tracker.database[collection][item['id']] = item
+                        collection = item.pop('collection')
+                        for idx, db_item in enumerate(tracker.database[collection]):
+                            if db_item['id'] == item['id']:
+                                tracker.database[collection][idx] = item
+                                break
+                        
                         tracker.save_database()
-                        st.success("✅ Date updated!")
+                        st.success("✅ Item updated!")
                     
-                    # Delete button
                     if st.button("Delete Item", key=f"delete_{item['id']}", type="secondary"):
                         collection = item['collection']
                         tracker.database[collection] = [
