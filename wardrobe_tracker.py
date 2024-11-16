@@ -1,3 +1,4 @@
+from ui_components import WardrobeUI 
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -264,7 +265,7 @@ class WardrobeTracker:
         st.success("Demo data loaded successfully!")
 
     def display_wardrobe_grid(self):
-        """Display wardrobe items in a grid with days remaining"""
+        """Display wardrobe items using the new UI components"""
         st.write("## Your Wardrobe")
         
         # Combine items and outfits
@@ -273,17 +274,32 @@ class WardrobeTracker:
             [{"type": "outfit", **outfit} for outfit in self.database["outfits"]]
         )
         
-        if not all_items:
-            st.info("Your wardrobe is empty! Take some photos to get started.")
-            return
-            
-        # Create columns for grid display
-        cols = st.columns(3)
+        def handle_add_view(item):
+            st.session_state['adding_view_to'] = item['id']
+            st.session_state['adding_view_type'] = 'outfit' if item.get('type') == 'Full Outfit' else 'item'
         
-        for idx, item in enumerate(all_items):
-            col = cols[idx % 3]
-            with col:
-                self.display_item_card(item)
+        def handle_capture(camera):
+            image = Image.open(camera)
+            success = self.add_new_item(
+                image,
+                item['type'],
+                is_outfit=(st.session_state['adding_view_type'] == 'outfit'),
+                existing_id=st.session_state['adding_view_to']
+            )
+            if success:
+                st.success("✅ Added new view!")
+                st.session_state.pop('adding_view_to')
+                st.rerun()
+        
+        # Render the wardrobe grid
+        WardrobeUI.render_wardrobe_grid(all_items, self.base64_to_image, handle_add_view)
+        
+        # Handle view addition modal if needed
+        if 'adding_view_to' in st.session_state:
+            for item in all_items:
+                if item['id'] == st.session_state['adding_view_to']:
+                    WardrobeUI.render_add_view_modal(item, handle_capture)
+                    break
 
     def display_item_card(self, item):
         """Display a single item/outfit card with image and multi-view support"""
