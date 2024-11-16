@@ -21,7 +21,7 @@ class FeatureExtractor:
                               std=[0.229, 0.224, 0.225])
         ])
         
-        self.similarity_threshold = 0.80
+        self.similarity_threshold = 0.84
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = self.model.to(self.device)
 
