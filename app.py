@@ -1,7 +1,7 @@
 import streamlit as st
 from PIL import Image
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from feature_extractor import FeatureExtractor
 from wardrobe_tracker import WardrobeTracker
 
@@ -26,8 +26,21 @@ def main():
         debug_mode = st.checkbox("Debug Mode")
         st.session_state['debug_mode'] = debug_mode
 
+        # Global reset period setting
+        st.divider()
+        st.subheader("Reset Period")
+        new_reset_period = st.number_input(
+            "Days until reset (default: 7)", 
+            min_value=1, 
+            max_value=30, 
+            value=tracker.reset_period
+        )
+        if new_reset_period != tracker.reset_period:
+            tracker.reset_period = new_reset_period
+            st.success(f"Reset period updated to {new_reset_period} days!")
+
     # Main content
-    tab1, tab2 = st.tabs(["Capture", "My Wardrobe"])
+    tab1, tab2, tab3 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe"])
     
     with tab1:
         st.subheader("Capture New Item" if mode == "Single Item" else "Capture Outfit")
@@ -46,7 +59,6 @@ def main():
             
             if status == "existing":
                 st.success(f"✅ Found matching {item['type']}! (Similarity: {similarity:.3f})")
-                # Show the matching image
                 if 'image' in item:
                     matched_image = tracker.base64_to_image(item['image'])
                     if matched_image:
@@ -57,10 +69,9 @@ def main():
                     
             elif status == "too_soon":
                 days_since = (datetime.now() - datetime.fromisoformat(item["last_worn"])).days
-                days_remaining = max(0, 7 - days_since)
+                days_remaining = max(0, tracker.reset_period - days_since)
                 st.warning(f"⚠️ This {item['type']} needs {days_remaining} more days to reset!")
                 
-                # Show the matched item that needs to reset
                 if 'image' in item:
                     matched_image = tracker.base64_to_image(item['image'])
                     if matched_image:
@@ -68,14 +79,12 @@ def main():
                 
             elif status == "new":
                 st.info("🆕 New item detected!")
-                
-                # Show the captured image
                 st.image(image, caption="Captured Image", use_column_width=True)
                 
                 if mode == "Single Item":
                     item_type = st.selectbox(
                         "What type of clothing is this?",
-                        list(tracker.clothing_categories.keys())[:-1]  # Exclude Full Outfit
+                        list(tracker.clothing_categories.keys())[:-1]
                     )
                     name = st.text_input("Give this item a name (optional):", 
                                        value=f"My {item_type}")
@@ -95,6 +104,72 @@ def main():
     
     with tab2:
         tracker.display_wardrobe_grid()
+        
+    with tab3:
+        st.subheader("Edit Wardrobe Items")
+        
+        # Combine items and outfits for editing
+        all_items = (
+            [{"collection": "items", **item} for item in tracker.database["items"]] +
+            [{"collection": "outfits", **outfit} for outfit in tracker.database["outfits"]]
+        )
+        
+        if not all_items:
+            st.info("Your wardrobe is empty! Add some items first.")
+            return
+            
+        for item in all_items:
+            with st.expander(f"{item.get('name', item['type'])}"):
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    if 'image' in item:
+                        image = tracker.base64_to_image(item['image'])
+                        if image:
+                            st.image(image, width=200)
+                
+                with col2:
+                    # Edit last worn date
+                    current_last_worn = datetime.fromisoformat(item["last_worn"])
+                    new_last_worn = st.date_input(
+                        "Last worn date",
+                        value=current_last_worn.date(),
+                        max_value=datetime.now().date()
+                    )
+                    
+                    # Calculate and show days until reset
+                    days_since = (datetime.now().date() - new_last_worn).days
+                    days_until_reset = max(0, tracker.reset_period - days_since)
+                    
+                    if days_until_reset > 0:
+                        st.warning(f"⏳ {days_until_reset} days until reset")
+                    else:
+                        st.success("✅ Ready to wear!")
+                    
+                    # Update button
+                    if st.button("Update Date", key=f"update_{item['id']}"):
+                        # Update the item in the database
+                        item["last_worn"] = datetime.combine(
+                            new_last_worn, 
+                            datetime.min.time()
+                        ).isoformat()
+                        
+                        # Save to correct collection
+                        collection = item.pop('collection')  # Remove helper field
+                        tracker.database[collection][item['id']] = item
+                        tracker.save_database()
+                        st.success("✅ Date updated!")
+                    
+                    # Delete button
+                    if st.button("Delete Item", key=f"delete_{item['id']}", type="secondary"):
+                        collection = item['collection']
+                        tracker.database[collection] = [
+                            x for x in tracker.database[collection] 
+                            if x['id'] != item['id']
+                        ]
+                        tracker.save_database()
+                        st.success("🗑️ Item deleted!")
+                        st.rerun()
 
 if __name__ == "__main__":
     main()
