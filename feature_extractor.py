@@ -9,11 +9,9 @@ from torchvision import transforms
 
 class FeatureExtractor:
     def __init__(self):
-        # Use EfficientNet-B0 instead of EfficientNet-V2-L for faster inference
+        # Use EfficientNet-B0 for faster inference
         self.model = efficientnet_b0(pretrained=True)
         self.model.eval()
-        
-        # Remove object detection model since it's not crucial and slows things down
         
         # Pre-define transform pipeline
         self.transform = transforms.Compose([
@@ -23,29 +21,22 @@ class FeatureExtractor:
                               std=[0.229, 0.224, 0.225])
         ])
         
-        # Similarity threshold
         self.similarity_threshold = 0.80
-        
-        # Reduced edge detection parameters
-        self.edge_low = 50
-        self.edge_high = 150
-        
-        # Move model to GPU if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = self.model.to(self.device)
 
     def extract_features(self, image, is_full_outfit=False):
-        """Optimized feature extraction"""
+        """Enhanced feature extraction with multiple perspectives"""
         try:
             img_np = np.array(image)
             features_list = []
 
-            # 1. Global features (main CNN features)
-            global_features = self._extract_global_features(image)
-            if global_features is not None:
-                features_list.append(global_features)
+            # 1. Original image features
+            original_features = self._extract_global_features(image)
+            if original_features is not None:
+                features_list.append(original_features)
 
-            # 2. Quick color features (reduced histogram bins)
+            # 2. Color features
             color_features = self._extract_color_features(img_np)
             if color_features is not None:
                 features_list.append(color_features)
@@ -53,7 +44,7 @@ class FeatureExtractor:
             if not features_list:
                 return None
 
-            # Combine features with simple weighting
+            # Combine features with weights
             weights = [0.7, 0.3]  # Prioritize CNN features
             combined_features = np.concatenate([
                 f * w for f, w in zip(features_list, weights[:len(features_list)])
@@ -64,6 +55,20 @@ class FeatureExtractor:
         except Exception as e:
             print(f"Error in feature extraction: {e}")
             return None
+
+
+    def calculate_similarity_multi_view(self, features, reference_features_list):
+        """Calculate similarity against multiple reference views"""
+        if not reference_features_list:
+            return 0.0
+
+        similarities = []
+        for ref_features in reference_features_list:
+            sim = self.calculate_similarity(features, ref_features)
+            similarities.append(sim)
+
+        # Return maximum similarity across all views
+        return max(similarities)
 
     def _extract_global_features(self, image):
         """Extract global features using EfficientNet"""

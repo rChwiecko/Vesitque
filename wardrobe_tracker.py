@@ -131,25 +131,48 @@ class WardrobeTracker:
             ax.bar(range(top_n), top_values)
             ax.set_title("Top Feature Values")
             st.pyplot(fig)
-    def add_new_item(self, image, item_type, is_outfit=False, name=None):
-        """Add new item with 7-day countdown"""
+    def add_new_item(self, image, item_type, is_outfit=False, name=None, existing_id=None):
+        """Add new item or add view to existing item"""
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
-        if features is not None:
+        if features is None:
+            return False
+
+        if existing_id is not None:
+            # Add new view to existing item
+            collection = "outfits" if is_outfit else "items"
+            for item in self.database[collection]:
+                if item['id'] == existing_id:
+                    if 'reference_images' not in item:
+                        item['reference_images'] = []
+                        item['reference_features'] = []
+                        # Move original image and features to lists
+                        item['reference_images'].append(item['image'])
+                        item['reference_features'].append(item['features'])
+                    
+                    # Add new view
+                    item['reference_images'].append(self.image_to_base64(image))
+                    item['reference_features'].append(features.tolist())
+                    self.save_database()
+                    return True
+            return False
+        else:
+            # Create new item with initial view
             collection = "outfits" if is_outfit else "items"
             new_item = {
                 "id": len(self.database[collection]),
                 "type": item_type,
                 "name": name or item_type,
-                "features": features.tolist(),
+                "reference_images": [self.image_to_base64(image)],
+                "reference_features": [features.tolist()],
                 "last_worn": datetime.now().isoformat(),
-                "image": self.image_to_base64(image),
-                "reset_period": 7  # Start with 7-day countdown
+                "image": self.image_to_base64(image),  # Keep one as primary for display
+                "features": features.tolist(),  # Keep one as primary for quick matching
+                "reset_period": 7
             }
             
             self.database[collection].append(new_item)
             self.save_database()
             return True
-        return False
     
         # 4. Similarity Analysis (if there's a match)
         if matching_item is not None:
@@ -263,8 +286,9 @@ class WardrobeTracker:
                 self.display_item_card(item)
 
     def display_item_card(self, item):
-        """Display a single item/outfit card with image and countdown"""
+        """Display a single item/outfit card with image and multi-view support"""
         with st.container():
+            # Add card styling
             st.markdown("""
                 <style>
                 .clothing-card {
@@ -276,8 +300,10 @@ class WardrobeTracker:
                 </style>
             """, unsafe_allow_html=True)
             
+            # Get emoji for item type
             emoji = self.clothing_categories.get(item.get('type', 'Other'), '👕')
             
+            # Display primary image
             if 'image' in item:
                 try:
                     image = self.base64_to_image(item['image'])
@@ -286,20 +312,52 @@ class WardrobeTracker:
                 except Exception:
                     st.image("placeholder.png", use_column_width=True)
             
+            # Display item name with emoji
             st.markdown(f"### {emoji} {item.get('name', item['type'])}")
             
-            # Calculate days remaining (counting down from last wear)
+            # Calculate and display countdown
             last_worn = datetime.fromisoformat(item["last_worn"])
             days_since = (datetime.now() - last_worn).days
             days_remaining = max(0, item.get('reset_period', 7) - days_since)
             
+            # Show countdown warning
             st.warning(f"⏳ {days_remaining} days remaining")
             st.caption(f"Last worn: {last_worn.strftime('%Y-%m-%d')}")
-
+            
+            # Add view counter if item has multiple views
+            if 'reference_images' in item:
+                num_views = len(item['reference_images'])
+                st.caption(f"📸 {num_views} views of this item")
+            
+            # Add button for new views
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                if st.button("Add View", key=f"add_view_{item['id']}"):
+                    st.session_state['adding_view_to'] = item['id']
+                    st.session_state['adding_view_type'] = 'outfit' if item.get('type') == 'Full Outfit' else 'item'
+            
+            # Handle view addition if in progress
+            if st.session_state.get('adding_view_to') == item['id']:
+                camera = st.camera_input(
+                    "Take another photo of this item",
+                    key=f"camera_view_{item['id']}"
+                )
+                if camera:
+                    image = Image.open(camera)
+                    success = self.add_new_item(
+                        image,
+                        item['type'],
+                        is_outfit=(st.session_state['adding_view_type'] == 'outfit'),
+                        existing_id=item['id']
+                    )
+                    if success:
+                        st.success("✅ Added new view!")
+                        st.session_state.pop('adding_view_to')
+                        st.rerun()
 
 
     def process_image(self, image, is_outfit=False):
-        """Process image with reset period that encourages wear"""
+        """Enhanced image processing with multi-view matching"""
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
             return "error", None, 0
@@ -310,8 +368,16 @@ class WardrobeTracker:
         
         for item in items_to_check:
             try:
-                stored_features = np.array(item["features"])
-                similarity = self.feature_extractor.calculate_similarity(features, stored_features)
+                # Check if item has multiple reference features
+                if 'reference_features' in item:
+                    similarity = self.feature_extractor.calculate_similarity_multi_view(
+                        features, 
+                        [np.array(f) for f in item['reference_features']]
+                    )
+                else:
+                    # Fallback to single feature comparison
+                    stored_features = np.array(item["features"])
+                    similarity = self.feature_extractor.calculate_similarity(features, stored_features)
                 
                 if similarity > self.similarity_threshold and similarity > best_similarity:
                     matching_item = item
@@ -320,13 +386,9 @@ class WardrobeTracker:
                 st.warning(f"Error comparing items: {str(e)}")
                 continue
 
-        if st.session_state.get('debug_mode', False):
-            self.visualize_analysis(image, features, matching_item)
-        
         if matching_item:
-            # Always update last worn and reset countdown to encourage wear
             matching_item["last_worn"] = datetime.now().isoformat()
-            matching_item["reset_period"] = 7  # Reset back to 7 days
+            matching_item["reset_period"] = 7
             self.save_database()
             return "existing", matching_item, best_similarity
                 
