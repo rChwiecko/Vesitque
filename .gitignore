@@ -1,1 +1,19 @@
-__pycache__/wardrobe_tracker.cpython-310.pyc
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Database files
+*.json
+
+# Environment directories
+venv/
+env/
+
+# IDE specific files
+.vscode/
+.idea/
+
+# OS specific files
+.DS_Store
+Thumbs.db
