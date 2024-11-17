@@ -139,89 +139,95 @@ class WardrobeTracker:
             # Convert image to RGB for analysis
             rgb_image = image.convert("RGB")
             
-            try:
-                # Get AI analysis
-                description = await classify_outfit(rgb_image)
+            async def analyze_and_add_item():
+                try:
+                    # Get AI analysis asynchronously
+                    description = await classify_outfit(rgb_image)
+                    
+                    new_item = {
+                        "id": len(self.database[collection]),
+                        "type": item_type,
+                        "name": name or item_type,
+                        "reference_images": [self.image_to_base64(image)],
+                        "reference_features": [features.tolist()],
+                        "last_worn": datetime.now().isoformat(),
+                        "image": self.image_to_base64(image),
+                        "features": features.tolist(),
+                        "reset_period": 7,
+                        "wear_count": 1,
+                        "ai_analysis": description  # Add the AI analysis
+                    }
+                    
+                    self.database[collection].append(new_item)
+                    self.save_database()
+                    st.success("✅ Added to wardrobe with AI analysis!")
+                    return True
                 
-                new_item = {
-                    "id": len(self.database[collection]),
-                    "type": item_type,
-                    "name": name or item_type,
-                    "reference_images": [self.image_to_base64(image)],
-                    "reference_features": [features.tolist()],
-                    "last_worn": datetime.now().isoformat(),
-                    "image": self.image_to_base64(image),
-                    "features": features.tolist(),
-                    "reset_period": 7,
-                    "wear_count": 1,
-                    "ai_analysis": description  # Add the AI analysis
-                }
-                
-                self.database[collection].append(new_item)
-                self.save_database()
-                st.success("✅ Added to wardrobe with AI analysis!")
-                return True
-                
-            except Exception as e:
-                st.error(f"Error during AI analysis: {str(e)}")
-                # Still add the item even if AI analysis fails
-                new_item = {
-                    "id": len(self.database[collection]),
-                    "type": item_type,
-                    "name": name or item_type,
-                    "reference_images": [self.image_to_base64(image)],
-                    "reference_features": [features.tolist()],
-                    "last_worn": datetime.now().isoformat(),
-                    "image": self.image_to_base64(image),
-                    "features": features.tolist(),
-                    "reset_period": 7,
-                    "wear_count": 1
-                }
-                
-                self.database[collection].append(new_item)
-                self.save_database()
-                st.warning("⚠️ Added to wardrobe, but AI analysis failed")
-                return True
+                except Exception as e:
+                    st.error(f"Error during AI analysis: {str(e)}")
+                    # Still add the item even if AI analysis fails
+                    new_item = {
+                        "id": len(self.database[collection]),
+                        "type": item_type,
+                        "name": name or item_type,
+                        "reference_images": [self.image_to_base64(image)],
+                        "reference_features": [features.tolist()],
+                        "last_worn": datetime.now().isoformat(),
+                        "image": self.image_to_base64(image),
+                        "features": features.tolist(),
+                        "reset_period": 7,
+                        "wear_count": 1,
+                        "ai_analysis": "Analysis failed"  # Fallback message
+                    }
+                    
+                    self.database[collection].append(new_item)
+                    self.save_database()
+                    st.warning("✅ Added to wardrobe without AI analysis!")
+                    return True
+
+            # Use asyncio.create_task to run the async function
+            asyncio.create_task(analyze_and_add_item())
+
     
         # 4. Similarity Analysis (if there's a match)
-        if matching_item is not None:
-            st.write("### 🎯 Similarity Matching")
-            col1, col2 = st.columns(2)
+        # if matching_item is not None:
+        #     st.write("### 🎯 Similarity Matching")
+        #     col1, col2 = st.columns(2)
             
-            with col1:
-                st.write("#### Matched Item")
-                if 'image' in matching_item:
-                    matched_image = self.base64_to_image(matching_item['image'])
-                    if matched_image:
-                        st.image(matched_image, use_column_width=True)
+        #     with col1:
+        #         st.write("#### Matched Item")
+        #         if 'image' in matching_item:
+        #             matched_image = self.base64_to_image(matching_item['image'])
+        #             if matched_image:
+        #                 st.image(matched_image, use_column_width=True)
                 
-            with col2:
-                st.write("#### Similarity Metrics")
-                stored_features = np.array(matching_item["features"])
+        #     with col2:
+        #         st.write("#### Similarity Metrics")
+        #         stored_features = np.array(matching_item["features"])
                 
-                # Calculate various similarity metrics
-                cosine_sim = self.feature_extractor.calculate_similarity(features, stored_features)
-                feature_diff = np.abs(features - stored_features[:len(features)])
-                diff_mean = feature_diff.mean()
+        #         # Calculate various similarity metrics
+        #         cosine_sim = self.feature_extractor.calculate_similarity(features, stored_features)
+        #         feature_diff = np.abs(features - stored_features[:len(features)])
+        #         diff_mean = feature_diff.mean()
                 
-                # Display metrics
-                metrics = {
-                    "Similarity Score": f"{cosine_sim:.3f}",
-                    "Feature Match": f"{(1 - diff_mean):.3f}",
-                    "Confidence": f"{max(0, min(1, cosine_sim)):.3f}"
-                }
+        #         # Display metrics
+        #         metrics = {
+        #             "Similarity Score": f"{cosine_sim:.3f}",
+        #             "Feature Match": f"{(1 - diff_mean):.3f}",
+        #             "Confidence": f"{max(0, min(1, cosine_sim)):.3f}"
+        #         }
                 
-                for metric, value in metrics.items():
-                    st.metric(metric, value)
+        #         for metric, value in metrics.items():
+        #             st.metric(metric, value)
                 
-                # Visualize feature differences
-                fig, ax = plt.subplots()
-                ax.hist(feature_diff, bins=50, color='blue', alpha=0.6)
-                ax.set_title("Feature Differences Distribution")
-                ax.axvline(diff_mean, color='red', linestyle='--', 
-                          label=f'Mean Diff: {diff_mean:.3f}')
-                ax.legend()
-                st.pyplot(fig)
+        #         # Visualize feature differences
+        #         fig, ax = plt.subplots()
+        #         ax.hist(feature_diff, bins=50, color='blue', alpha=0.6)
+        #         ax.set_title("Feature Differences Distribution")
+        #         ax.axvline(diff_mean, color='red', linestyle='--', 
+        #                   label=f'Mean Diff: {diff_mean:.3f}')
+        #         ax.legend()
+        #         st.pyplot(fig)
 
     def save_database(self):
         try:
