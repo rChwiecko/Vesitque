@@ -6,6 +6,7 @@ from feature_extractor import FeatureExtractor
 from wardrobe_tracker import WardrobeTracker
 from wardrobe_notifier import EmailNotifier
 import time  
+import asyncio  # Add this
 import os
 def initialize_email_settings():
     if 'email_configured' not in st.session_state:
@@ -143,14 +144,43 @@ def main():
                     name = st.text_input("Give this outfit a name:", "My New Outfit")
                 
                 if st.button("Add to Wardrobe"):
-                    success = tracker.add_new_item(
-                        image, 
-                        item_type,
-                        is_outfit=(mode == "Full Outfit"),
-                        name=name
-                    )
-                    if success:
-                        st.success("✅ Added to wardrobe!")
+                    try:
+                        # Create a new event loop
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        
+                        # Run the async operation
+                        with st.spinner("Adding item to wardrobe..."):
+                            success = loop.run_until_complete(
+                                tracker.add_new_item(
+                                    image, 
+                                    item_type,
+                                    is_outfit=(mode == "Full Outfit"),
+                                    name=name
+                                )
+                            )
+                            
+                        if success:
+                            st.success("✅ Added to wardrobe!")
+                            
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+                        # Still try to add the item without AI analysis
+                        fallback_success = tracker.add_new_item_sync(
+                            image,
+                            item_type,
+                            is_outfit=(mode == "Full Outfit"),
+                            name=name
+                        )
+                        if fallback_success:
+                            st.warning("⚠️ Added to wardrobe without AI analysis")
+                    
+                    finally:
+                        # Clean up the event loop
+                        try:
+                            loop.close()
+                        except:
+                            pass
     
     with tab2:
         tracker.display_wardrobe_grid()
