@@ -89,7 +89,7 @@ def main():
             st.success(f"Default reset period updated to {new_reset_period} days!")
 
     # Main content
-    tab1, tab2, tab3, tab4 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe", "Notifications"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe", "Notifications","Preferences"])
     
     with tab1:
         st.subheader("Capture New Item" if mode == "Single Item" else "Capture Outfit")
@@ -311,6 +311,8 @@ def main():
                             st.success("Test email sent!")
                             with st.expander("📧 Test Email Preview"):
                                 st.text(email_notifier.generate_personalized_content(test_items))
+    with tab5:
+        st.write("hey")
 
 if __name__ == "__main__":
     main()
