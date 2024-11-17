@@ -283,6 +283,7 @@ def main():
                         if matched_image:
                             st.image(matched_image, caption="Recently Worn Item", use_column_width=True)
                     
+                
                 elif status == "new":
                     st.info("🆕 New item detected!")
                     st.image(image, caption="Captured Image", use_column_width=True)
