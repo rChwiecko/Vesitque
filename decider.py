@@ -11,31 +11,33 @@ def decide_preference(set_of_top_worn, set_of_least_worn, model='Meta-Llama-3.1-
         "stream": False,
         "model": model,
         "messages": [
-             {
+            {
                 "role": "system",
                 "content": "You are a highly intelligent fashion advisor and stylist with expertise in analyzing wardrobe data. Your task is to assist in optimizing wardrobe preferences based on usage data."
             },
             {
                 "role": "user",
                 "content": f"""Here is the data for the most worn and least worn clothing items in my wardrobe:
-                
+
                 ### Most Worn:
                 {set_of_top_worn}
-                
+
                 ### Least Worn:
                 {set_of_least_worn}
-                
-                Please analyze these and provide:
-                1. Common trends in both most worn and least worn items.
-                2. Recommendations for improving wardrobe usage and optimization.
-                3. Suggestions for integrating least worn items into more outfits.
-                4. Suggestions for wardrobe acquisition based on the trends.
 
-                The response should be of the form:
-                    -Most worn characteristics
-                    -Least worn characteristics
-                
-                KEEP THE RESPONSE BRIEF AND ONLY TALK ABOUT THE 2 POINTS ABOVE
+                Please analyze this data and return the following structured response:
+                1. **Characteristics of Most Worn Items**: A list of common features (e.g., colors, materials, styles, use cases) that make these items popular.
+                2. **Characteristics of Least Worn Items**: A list of common features that make these items less appealing or harder to use.
+                3. **Overall Recommendation**: A concise suggestion for future wardrobe acquisitions based on the trends, addressing how to optimize for both practicality and style.
+
+                ### Example Response Format:
+                [
+                    ["Characteristics of Most Worn Items"],
+                    ["Characteristics of Least Worn Items"],
+                    "Overall Recommendation"
+                ]
+
+                Your response must strictly adhere to this format without additional text or explanations.
                 """
             }
         ]
@@ -50,12 +52,5 @@ def decide_preference(set_of_top_worn, set_of_least_worn, model='Meta-Llama-3.1-
     else:
         raise Exception(f"Llama API Error {llama_res.status_code}: {llama_res.text}")
     
-best = [
-{ "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
-]
 
-worst = [
-    { "type": "sweatshirt", "material": "cotton blend", "color": { "primary": "dark navy blue", "secondary": ["white graphic"] }, "fit_and_style": { "fit": "relaxed", "style": "casual" }, "design_features": { "collar": "hooded", "closures": ["drawstring"], "embellishments": ["graphic print"], "logo": "none" }, "condition": "new", "brand": "unknown", "season": "all-season", "use_case": ["travel", "casual outings"], "size": "unknown" }
-]
 
-print(decide_preference(best,worst))
