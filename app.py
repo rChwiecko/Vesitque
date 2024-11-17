@@ -7,6 +7,18 @@ from wardrobe_tracker import WardrobeTracker
 from wardrobe_notifier import EmailNotifier
 import time  
 import os
+from decider import decide_preference
+
+
+best = [
+{ "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
+]
+
+worst = [
+    { "type": "sweatshirt", "material": "cotton blend", "color": { "primary": "dark navy blue", "secondary": ["white graphic"] }, "fit_and_style": { "fit": "relaxed", "style": "casual" }, "design_features": { "collar": "hooded", "closures": ["drawstring"], "embellishments": ["graphic print"], "logo": "none" }, "condition": "new", "brand": "unknown", "season": "all-season", "use_case": ["travel", "casual outings"], "size": "unknown" }
+]
+
+
 def initialize_email_settings():
     if 'email_configured' not in st.session_state:
         st.session_state.email_configured = False
@@ -311,8 +323,61 @@ def main():
                             st.success("Test email sent!")
                             with st.expander("📧 Test Email Preview"):
                                 st.text(email_notifier.generate_personalized_content(test_items))
+    import json
+
     with tab5:
-        st.write("hey")
+        st.markdown(
+            """
+            <style>
+                .spacer {
+                    margin-bottom: 20px;
+                }
+                .center-header {
+                    text-align: center;
+                    font-size: 24px;
+                    font-weight: bold;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Centered main header
+        st.markdown("<div class='center-header'>👗 Wardrobe Insights and Recommendations</div>", unsafe_allow_html=True)
+        st.markdown("<div class='spacer'></div>", unsafe_allow_html=True)  # Add a spacer
+
+        # Call the decide_preference function
+        with st.spinner("Analyzing wardrobe preferences..."):
+            result = decide_preference(best, worst)
+
+        try:
+            # Parse the result into a list
+            results_list = json.loads(result)  # Parse JSON string into Python list
+        except json.JSONDecodeError as e:
+            st.error(f"Error parsing JSON response: {e}")
+            st.stop()
+
+        # Create a two-column layout for traits
+        col1, col2 = st.columns(2)
+
+        # Most Worn Traits
+        with col1:
+            st.markdown("### Traits of Most Worn Items")
+            st.markdown("\n".join([f"- {trait}" for trait in results_list[0][1]]))
+
+        # Least Worn Traits
+        with col2:
+            st.markdown("### Traits of Least Worn Items")
+            st.markdown("\n".join([f"- {trait}" for trait in results_list[1][1]]))
+
+        # Overall Recommendation (Centered)
+        st.markdown("---")
+        st.markdown("<div style='text-align: center; font-size: 18px; font-weight: bold;'>Overall Recommendation</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center;'>{results_list[2]}</div>", unsafe_allow_html=True)
+
+
+
+
 
 if __name__ == "__main__":
     main()
