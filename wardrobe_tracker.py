@@ -22,6 +22,7 @@ import seaborn as sns
 from wardrobe_analysis import WardrobeAnalysis
 import asyncio  # Add this
 from classifier import classify_outfit  # Add this
+from event_loop import background_loop
 class WardrobeTracker:
     def __init__(self, feature_extractor):
         self.feature_extractor = feature_extractor
@@ -110,7 +111,7 @@ class WardrobeTracker:
     def visualize_analysis(self, image, features, matching_item=None):
         """Visualize the analysis process in debug mode"""
         WardrobeAnalysis.visualize_analysis(image, features, matching_item, self.base64_to_image)
-    async def add_new_item(self, image, item_type, is_outfit=False, name=None, existing_id=None):
+    def add_new_item(self, image, item_type, is_outfit=False, name=None, existing_id=None):
         """Add new item or add view to existing item with wear count and AI analysis"""
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
@@ -139,31 +140,15 @@ class WardrobeTracker:
             # Convert image to RGB for analysis
             rgb_image = image.convert("RGB")
             
-            async def analyze_and_add_item():
-                try:
-                    # Get AI analysis asynchronously
-                    description = await classify_outfit(rgb_image)
-                    
-                    new_item = {
-                        "id": len(self.database[collection]),
-                        "type": item_type,
-                        "name": name or item_type,
-                        "reference_images": [self.image_to_base64(image)],
-                        "reference_features": [features.tolist()],
-                        "last_worn": datetime.now().isoformat(),
-                        "image": self.image_to_base64(image),
-                        "features": features.tolist(),
-                        "reset_period": 7,
-                        "wear_count": 1,
-                        "ai_analysis": description  # Add the AI analysis
-                    }
-                    
-                    self.database[collection].append(new_item)
-                    self.save_database()
-                    st.success("✅ Added to wardrobe with AI analysis!")
-                    return True
+            try:
+                # Import the background_loop from main.py
+                from app import background_loop
+
+                # Run the async function in the background event loop
+                future = asyncio.run_coroutine_threadsafe(classify_outfit(rgb_image), background_loop)
+                description = future.result()  # This will block until the result is available
                 
-                except Exception as e:
+            except Exception as e:
                     st.error(f"Error during AI analysis: {str(e)}")
                     # Still add the item even if AI analysis fails
                     new_item = {

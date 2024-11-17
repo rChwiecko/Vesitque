@@ -7,9 +7,10 @@ from wardrobe_tracker import WardrobeTracker
 from wardrobe_notifier import EmailNotifier
 import time  
 import asyncio  # Add this
+import threading
 import os
 from decider import decide_preference
-
+from event_loop import background_loop
 
 best = [
 { "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
@@ -316,15 +317,12 @@ def main():
                     
                     if st.button("Add to Wardrobe"):
                         try:
-                            # Run the async operation
                             with st.spinner("Adding item to wardrobe..."):
-                                success = asyncio.run(
-                                    tracker.add_new_item(
-                                        image, 
-                                        item_type,
-                                        is_outfit=(mode == "Full Outfit"),
-                                        name=name
-                                    )
+                                success = tracker.add_new_item(
+                                    image,
+                                    item_type,
+                                    is_outfit=(mode == "Full Outfit"),
+                                    name=name
                                 )
                                 
                             if success:
@@ -351,6 +349,7 @@ def main():
                             st.session_state['image_status'] = None
                             st.session_state['image_item'] = None
                             st.session_state['image_similarity'] = None
+
             else:
                 # Reset session state when no camera input
                 st.session_state['current_image'] = None
