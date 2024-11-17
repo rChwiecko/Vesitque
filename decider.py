@@ -6,38 +6,38 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-def decide_preference(set_of_top_worn, set_of_least_worn, model='Meta-Llama-3.1-70B-Instruct'):
+def decide_preference(top_worn, least_worn, model='Meta-Llama-3.1-70B-Instruct'):
     data = {
         "stream": False,
         "model": model,
         "messages": [
             {
                 "role": "system",
-                "content": "You are a highly intelligent fashion advisor and stylist with expertise in analyzing wardrobe data. Your task is to assist in optimizing wardrobe preferences based on usage data."
+                "content": "You are a highly intelligent fashion advisor and stylist with expertise in analyzing wardrobe data. Your task is to assist in optimizing wardrobe preferences based on usage data. Your response MUST strictly adhere to this format without additional text or explanations."
             },
             {
                 "role": "user",
-                "content": f"""Here is the data for the most worn and least worn clothing items in my wardrobe:
+                "content": f"""Here is the data for the most worn and least worn clothing item in my wardrobe:
 
                 ### Most Worn:
-                {set_of_top_worn}
+                {top_worn}
 
                 ### Least Worn:
-                {set_of_least_worn}
+                {least_worn}
 
                 Please analyze this data and return the following structured response:
-                1. **Characteristics of Most Worn Items**: A list of common features (e.g., colors, materials, styles, use cases) that make these items popular.
-                2. **Characteristics of Least Worn Items**: A list of common features that make these items less appealing or harder to use.
+                1. **Key Characteristics of Most Worn Item**: A list of common features (e.g., colors, materials, styles, use cases) that make the items popular.
+                2. **Key Characteristics of Least Worn Item**: A list of common features that make the item less appealing or harder to use.
                 3. **Overall Recommendation**: A concise suggestion for future wardrobe acquisitions based on the trends, addressing how to optimize for both practicality and style.
 
                 ### Example Response Format:
                 [
-                    ["Characteristics of Most Worn Items"],
-                    ["Characteristics of Least Worn Items"],
+                    ["Characteristics of Most Worn Item"],
+                    ["Characteristics of Least Worn Item"],
                     "Overall Recommendation"
                 ]
 
-                Your response must strictly adhere to this format without additional text or explanations.
+                Your response MUST strictly adhere to this format without additional text or explanations and have ALL 3 parts stored in a list as the result
                 """
             }
         ]
