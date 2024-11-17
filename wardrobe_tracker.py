@@ -265,8 +265,8 @@ class WardrobeTracker:
         st.success("Demo data loaded successfully!")
 
     def display_wardrobe_grid(self):
-        """Display wardrobe items using the new UI components"""
-        st.write("## Your Wardrobe")
+        """Display wardrobe items using the UI components"""
+        # Remove the st.write("## Your Wardrobe") line - let WardrobeUI handle the header
         
         # Combine items and outfits
         all_items = (
@@ -293,7 +293,6 @@ class WardrobeTracker:
         
         # Render the wardrobe grid
         WardrobeUI.render_wardrobe_grid(all_items, self.base64_to_image, handle_add_view)
-        
         # Handle view addition modal if needed
         if 'adding_view_to' in st.session_state:
             for item in all_items:
