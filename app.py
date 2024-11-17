@@ -452,6 +452,18 @@ def main():
     import json
 
     with tab5:
+        min_view, max_view = float('inf'), -1
+        with open('clothing_database.json', 'r') as file:
+            contents_packed = json.load(file)
+            contents = contents_packed['items']
+        for item in contents:
+            if item['wear_count'] < min_view:
+                smallest_des = item['ai_analysis']
+                min_view = item['wear_count']
+            if item['wear_count'] > max_view:
+                largest_des = item['ai_analysis']
+                max_view = item['wear_count']
+
         st.markdown(
             """
             <style>
@@ -474,14 +486,10 @@ def main():
 
         # Call the decide_preference function
         with st.spinner("Analyzing wardrobe preferences..."):
-            result = decide_preference(best, worst)
+            result = decide_preference(largest_des, smallest_des)
 
-        try:
-            # Parse the result into a list
-            results_list = json.loads(result)  # Parse JSON string into Python list
-        except json.JSONDecodeError as e:
-            st.error(f"Error parsing JSON response: {e}")
-            st.stop()
+        # Parse the result into a list
+        results_list = json.loads(result)  # Ensure the result is a Python list
 
         # Create a two-column layout for traits
         col1, col2 = st.columns(2)
@@ -489,12 +497,12 @@ def main():
         # Most Worn Traits
         with col1:
             st.markdown("### Traits of Most Worn Items")
-            st.markdown("\n".join([f"- {trait}" for trait in results_list[0][1]]))
+            st.markdown("\n".join([f"- {trait}" for trait in results_list[0]]))  # Bullet points for most worn
 
         # Least Worn Traits
         with col2:
             st.markdown("### Traits of Least Worn Items")
-            st.markdown("\n".join([f"- {trait}" for trait in results_list[1][1]]))
+            st.markdown("\n".join([f"- {trait}" for trait in results_list[1]]))  # Bullet points for least worn
 
         # Overall Recommendation (Centered)
         st.markdown("---")
