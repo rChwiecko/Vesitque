@@ -43,6 +43,78 @@ def initialize_camera_state():
         st.session_state.current_image = None
     if 'first_run' not in st.session_state:
         st.session_state.first_run = True
+    if 'image_processed' not in st.session_state:
+        st.session_state['image_processed'] = False
+def edit_wardrobe_tab(tracker):
+    st.subheader("Edit Wardrobe Items")
+    
+    all_items = (
+        [{"collection": "items", **item} for item in tracker.database["items"]] +
+        [{"collection": "outfits", **outfit} for outfit in tracker.database["outfits"]]
+    )
+    
+    if not all_items:
+        st.info("Your wardrobe is empty! Add some items first.")
+        return
+        
+    for item in all_items:
+        with st.expander(f"{item.get('name', item['type'])}"):
+            col1, col2 = st.columns([2, 1])
+            
+            # Create a unique key for this item's state
+            item_key = f"edit_{item['id']}_{item['collection']}"
+            
+            with col1:
+                if 'image' in item:
+                    image = tracker.base64_to_image(item['image'])
+                    if image:
+                        st.image(image, width=200)
+                
+                # Use database value for initial display
+                new_wear_count = st.number_input(
+                    "Times worn",
+                    min_value=0,
+                    value=item.get('wear_count', 0),
+                    key=f"count_{item_key}"
+                )
+            
+            with col2:
+                # Use database value for initial display
+                new_last_worn = st.date_input(
+                    "Last worn date",
+                    value=datetime.fromisoformat(item["last_worn"]).date(),
+                    max_value=datetime.now().date(),
+                    key=f"date_{item_key}"
+                )
+                
+                days_since = (datetime.now().date() - new_last_worn).days
+                days_remaining = max(0, 7 - days_since)
+                st.warning(f"⏳ {days_remaining} days remaining")
+                
+                # Update container to avoid clutter
+                update_container = st.container()
+                with update_container:
+                    if st.button("Update", key=f"update_{item_key}"):
+                        success = tracker.update_item(
+                            item['id'],
+                            item['collection'],
+                            datetime.combine(new_last_worn, datetime.min.time()).isoformat(),
+                            int(new_wear_count)
+                        )
+                        if success:
+                            st.success("✅ Item updated!")
+                            time.sleep(0.5)
+                            st.rerun()
+                
+                if st.button("Delete Item", key=f"delete_{item_key}"):
+                    collection = item['collection']
+                    tracker.database[collection] = [
+                        x for x in tracker.database[collection] 
+                        if x['id'] != item['id']
+                    ]
+                    tracker.save_database()
+                    st.success("🗑️ Item deleted!")
+                    st.rerun()
 
 def main():
     initialize_email_settings()
@@ -177,10 +249,12 @@ def main():
                 key="camera_input",
                 label_visibility="hidden"
             )
-        
-            if camera is not None:
+            if camera is None:
+                st.session_state['image_processed'] = False
+            if camera is not None and not st.session_state['image_processed']:
                 image = Image.open(camera)
                 st.session_state.current_image = image
+                st.session_state['image_processed'] = True  # Set the flag
                 
                 # Process image
                 status, item, similarity = tracker.process_image(
@@ -267,73 +341,7 @@ def main():
         tracker.display_wardrobe_grid()
         
     with tab3:
-        st.subheader("Edit Wardrobe Items")
-        
-        all_items = (
-            [{"collection": "items", **item} for item in tracker.database["items"]] +
-            [{"collection": "outfits", **outfit} for outfit in tracker.database["outfits"]]
-        )
-        
-        if not all_items:
-            st.info("Your wardrobe is empty! Add some items first.")
-            return
-            
-        for item in all_items:
-            with st.expander(f"{item.get('name', item['type'])}"):
-                col1, col2 = st.columns([2, 1])
-                
-                with col1:
-                    if 'image' in item:
-                        image = tracker.base64_to_image(item['image'])
-                        if image:
-                            st.image(image, width=200)
-                            
-                    current_wear_count = item.get('wear_count', 0)
-                    new_wear_count = st.number_input(
-                        "Times worn",
-                        min_value=0,
-                        value=int(current_wear_count),
-                        key=f"wear_count_{item['id']}_{item['collection']}"
-                    )
-                
-                with col2:
-                    current_last_worn = datetime.fromisoformat(item["last_worn"])
-                    new_last_worn = st.date_input(
-                        "Last worn date",
-                        value=current_last_worn.date(),
-                        max_value=datetime.now().date(),
-                        key=f"date_{item['id']}_{item['collection']}"
-                    )
-                    
-                    days_since = (datetime.now().date() - new_last_worn).days
-                    days_remaining = max(0, 7 - days_since)
-                    
-                    st.warning(f"⏳ {days_remaining} days remaining")
-                    
-                    if st.button("Update", key=f"update_{item['id']}"):
-                        success = tracker.update_item(
-                            item['id'],
-                            item['collection'],
-                            datetime.combine(new_last_worn, datetime.min.time()).isoformat(),
-                            new_wear_count
-                        )
-                        if success:
-                            st.success("✅ Item updated!")
-                            time.sleep(0.5)
-                            st.rerun()
-                    
-                    if st.button("Delete Item", key=f"delete_{item['id']}", type="secondary"):
-                        collection = item['collection']
-                        tracker.database[collection] = [
-                            x for x in tracker.database[collection] 
-                            if x['id'] != item['id']
-                        ]
-                        tracker.save_database()
-                        st.success("🗑️ Item deleted!")
-                        st.rerun()
-
-    # In your main.py notifications tab
-    # In your main.py, replace the notifications tab code with this:
+        edit_wardrobe_tab(tracker)
 
     with tab4:
         st.subheader("📧 Email Notifications")

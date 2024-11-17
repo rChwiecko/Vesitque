@@ -376,7 +376,7 @@ class WardrobeTracker:
 
 
     def process_image(self, image, is_outfit=False):
-        """Process image with correct wear count handling"""
+        """Process image with automatic wear count increment for matches"""
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
             return "error", None, 0
@@ -407,28 +407,48 @@ class WardrobeTracker:
                 continue
 
         if matching_item:
-            # Check if this is a new wear or just an update
-            if not st.session_state.get('updating_item', False):
-                # Only increment wear count if this is a new wear (not an update)
-                matching_item["wear_count"] = matching_item.get("wear_count", 0) + 1
-                matching_item["last_worn"] = datetime.now().isoformat()
-            self.save_database()
+            # Store the pre-incremented wear count in session state
+            item_key = f"{matching_item['id']}_{is_outfit}"
+            if item_key not in st.session_state:
+                st.session_state[item_key] = {}
+            
+            st.session_state[item_key]['original_wear_count'] = matching_item.get('wear_count', 0)
+            
+            # Increment wear count
+            collection = "outfits" if is_outfit else "items"
+            new_count = self.increment_wear_count(matching_item['id'], collection)
+            st.success(f"Updated wear count to {new_count}")
+            
             return "existing", matching_item, best_similarity
 
         return "new", None, 0
-
     
     def update_item(self, item_id, collection, new_last_worn, new_wear_count):
-        """Properly update item details without incrementing wear count"""
+        """Update item details only when update button is clicked"""
         try:
-            st.session_state['updating_item'] = True  # Flag to prevent wear count increment
             for item in self.database[collection]:
                 if item['id'] == item_id:
+                    # Update the values only when explicitly called
                     item["last_worn"] = new_last_worn
-                    item["wear_count"] = new_wear_count  # Directly set the wear count
+                    item["wear_count"] = int(new_wear_count)
                     item["reset_period"] = 7
                     self.save_database()
                     return True
-        finally:
-            st.session_state['updating_item'] = False  # Reset the flag
-        return False
+            return False
+        except Exception as e:
+            st.error(f"Error updating item: {str(e)}")
+            return False
+    def increment_wear_count(self, item_id, collection):
+        """Handle wear count increments when matching items"""
+        try:
+            for item in self.database[collection]:
+                if item['id'] == item_id:
+                    current_count = item.get("wear_count", 0)
+                    item["wear_count"] = current_count + 1
+                    item["last_worn"] = datetime.now().isoformat()
+                    self.save_database()
+                    return item["wear_count"]
+            return None
+        except Exception as e:
+            st.error(f"Error incrementing wear count: {str(e)}")
+            return None
