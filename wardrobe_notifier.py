@@ -171,3 +171,81 @@ Requirements:
             return []
                     
         return unworn_items
+    def generate_listing_content(self, item):
+        """Generate marketplace listing content using SambaNova API"""
+        try:
+            progress_text = "Generating listing content..."
+            my_bar = st.progress(0, text=progress_text)
+            
+            # Prepare item information
+            item_info = {
+                'name': item.get('name', item['type']),
+                'type': item['type'],
+                'condition': item.get('condition', 'Not specified'),
+                'material': item.get('material', 'Not specified'),
+                'color': item.get('color', {}).get('primary', 'Not specified'),
+                'brand': item.get('brand', 'Not specified'),
+                'wear_count': item.get('wear_count', 0)
+            }
+            
+            my_bar.progress(25, text="Processing item details...")
+
+            headers = {
+                "Authorization": f"Bearer {self.sambanova_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            prompt = f"""Create an engaging marketplace listing for this clothing item. 
+
+    Item Details:
+    {json.dumps(item_info, indent=2)}
+
+    Requirements:
+    1. Write a catchy title
+    2. Create an engaging description
+    3. Highlight key features and condition
+    4. Suggest styling options
+    5. Keep it professional but friendly
+    6. Include emojis where appropriate
+    """
+
+            payload = {
+                "model": "Meta-Llama-3.1-70B-Instruct",
+                "messages": [
+                    {"role": "system", "content": "You are a professional fashion marketplace listing creator."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7,
+                "top_p": 0.9
+            }
+
+            my_bar.progress(50, text="Generating listing...")
+            
+            try:
+                response = requests.post(
+                    self.sambanova_url,
+                    headers=headers,
+                    json=payload,
+                    timeout=30
+                )
+                my_bar.progress(75, text="Processing response...")
+
+                if response.status_code == 200:
+                    content = response.json()['choices'][0]['message']['content']
+                    my_bar.progress(100, text="Listing generated!")
+                    time.sleep(0.5)
+                    my_bar.empty()
+                    return content
+                else:
+                    st.error(f"SambaNova API error {response.status_code}")
+                    my_bar.empty()
+                    return None
+                    
+            except Exception as e:
+                st.error(f"Error generating listing: {str(e)}")
+                my_bar.empty()
+                return None
+                
+        except Exception as e:
+            st.error(f"Error in generate_listing_content: {str(e)}")
+            return None
