@@ -7,6 +7,18 @@ from wardrobe_tracker import WardrobeTracker
 from wardrobe_notifier import EmailNotifier
 import time  
 import os
+from decider import decide_preference
+
+
+best = [
+{ "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
+]
+
+worst = [
+    { "type": "sweatshirt", "material": "cotton blend", "color": { "primary": "dark navy blue", "secondary": ["white graphic"] }, "fit_and_style": { "fit": "relaxed", "style": "casual" }, "design_features": { "collar": "hooded", "closures": ["drawstring"], "embellishments": ["graphic print"], "logo": "none" }, "condition": "new", "brand": "unknown", "season": "all-season", "use_case": ["travel", "casual outings"], "size": "unknown" }
+]
+
+
 def initialize_email_settings():
     if 'email_configured' not in st.session_state:
         st.session_state.email_configured = False
@@ -312,7 +324,42 @@ def main():
                             with st.expander("📧 Test Email Preview"):
                                 st.text(email_notifier.generate_personalized_content(test_items))
     with tab5:
-        st.write("hey")
+        st.subheader("👗 Wardrobe Insights and Recommendations")
+        
+        # Input data for most and least worn items
+        most_worn_input = st.text_area("Paste JSON Data for Most Worn Items", height=200, placeholder="Enter most worn items JSON here...")
+        least_worn_input = st.text_area("Paste JSON Data for Least Worn Items", height=200, placeholder="Enter least worn items JSON here...")
+        
+        # Button to analyze wardrobe
+        if st.button("Analyze Wardrobe"):
+            try:
+                # Parse the JSON inputs
+                set_of_top_worn = eval(most_worn_input)  # Use json.loads() for safer parsing if data is JSON
+                set_of_least_worn = eval(least_worn_input)
+                
+                # Call the decide_preference function
+                with st.spinner("Analyzing wardrobe preferences..."):
+                    result = decide_preference(best, worst)
+                    
+                # Display the results
+                st.subheader("Wardrobe Analysis Results")
+                results_list = eval(result)  # Parse the result if it's a string representation of a list
+                
+                # Show most worn characteristics
+                st.markdown("### Most Worn Characteristics")
+                st.write(results_list[0][1])
+                
+                # Show least worn characteristics
+                st.markdown("### Least Worn Characteristics")
+                st.write(results_list[1][1])
+                
+                # Show overall recommendations
+                st.markdown("### Overall Recommendations")
+                st.write(results_list[2])
+            
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
+
 
 if __name__ == "__main__":
     main()
