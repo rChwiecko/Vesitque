@@ -24,9 +24,18 @@ def initialize_notification_state():
             'show_send_button': False,
             'sending_email': False
         }
+def initialize_camera_state():
+    if 'camera_initialized' not in st.session_state:
+        st.session_state.camera_initialized = False
+    if 'current_image' not in st.session_state:
+        st.session_state.current_image = None
+    if 'first_run' not in st.session_state:
+        st.session_state.first_run = True
+
 def main():
     initialize_email_settings()
     initialize_notification_state()
+    initialize_camera_state()  # Add this line
     st.title("VESTIQUE - Smart Wardrobe Assistant")
     
     feature_extractor = FeatureExtractor()
@@ -93,94 +102,154 @@ def main():
     tab1, tab2, tab3, tab4 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe", "Notifications"])
     
     with tab1:
-        st.subheader("Capture New Item" if mode == "Single Item" else "Capture Outfit")
-        camera = st.camera_input(
-            "Take a photo" if mode == "Single Item" else "Take a photo of your outfit"
-        )
         
-        if camera:
-            image = Image.open(camera)
+            st.subheader("Capture New Item" if mode == "Single Item" else "Capture Outfit")
+            # Fix for first run
+            if st.session_state.first_run:
+                st.session_state.first_run = False
+                st.rerun()
+            # Custom CSS to force the camera layout
+            st.markdown("""
+                <style>
+                /* Main camera container */
+                .stCamera {
+                    background-color: #1E1E1E !important;
+                    border-radius: 10px !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    width: 640px !important;
+                    height: 480px !important;
+                }
+                
+                /* Video feed */
+                .stCamera > video {
+                    width: 100% !important;
+                    height: 100% !important;
+                    object-fit: cover !important;
+                }
+                
+                /* Captured image */
+                .stCamera > img {
+                    width: 100% !important;
+                    height: 100% !important;
+                    object-fit: contain !important;
+                    background-color: #1E1E1E !important;
+                }
+                
+                /* Clear photo button section */
+                .stCamera > div {
+                    position: absolute !important;
+                    bottom: 0 !important;
+                    width: 100% !important;
+                    background-color: rgba(0,0,0,0.7) !important;
+                    padding: 8px !important;
+                    border-radius: 0 0 10px 10px !important;
+                }
+
+                /* Center the camera in the page */
+                [data-testid="stHorizontalBlock"] {
+                    justify-content: center !important;
+                    background-color: transparent !important;
+                }
+
+                /* Remove any extra padding/margin */
+                .stApp {
+                    margin: 0 auto !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
             
-            # Process image
-            status, item, similarity = tracker.process_image(
-                image, 
-                is_outfit=(mode == "Full Outfit")
+            # Camera input in center of page
+            camera = st.camera_input(
+                "Take a photo" if mode == "Single Item" else "Take a photo of your outfit",
+                key="camera_input",
+                label_visibility="hidden"
             )
-            
-            if status == "existing":
-                st.success(f"✅ Found matching {item['type']}! (Similarity: {similarity:.3f})")
-                if 'image' in item:
-                    matched_image = tracker.base64_to_image(item['image'])
-                    if matched_image:
-                        st.image(matched_image, caption="Matched Item", use_column_width=True)
+        
+            if camera is not None:
+                image = Image.open(camera)
+                st.session_state.current_image = image
                 
-                if debug_mode:
-                    st.write("Match details:", item)
+                # Process image
+                status, item, similarity = tracker.process_image(
+                    image, 
+                    is_outfit=(mode == "Full Outfit")
+                )
+                
+                if status == "existing":
+                    st.success(f"✅ Found matching {item['type']}! (Similarity: {similarity:.3f})")
+                    if 'image' in item:
+                        matched_image = tracker.base64_to_image(item['image'])
+                        if matched_image:
+                            st.image(matched_image, caption="Matched Item", use_column_width=True)
                     
-            elif status == "too_soon":
-                reset_period = item.get('reset_period', tracker.reset_period)
-                days_since = (datetime.now() - datetime.fromisoformat(item["last_worn"])).days
-                days_remaining = max(0, reset_period - days_since)
-                st.warning(f"⚠️ This {item['type']} needs {days_remaining} more days to reset!")
-                
-                if 'image' in item:
-                    matched_image = tracker.base64_to_image(item['image'])
-                    if matched_image:
-                        st.image(matched_image, caption="Recently Worn Item", use_column_width=True)
-                
-            elif status == "new":
-                st.info("🆕 New item detected!")
-                st.image(image, caption="Captured Image", use_column_width=True)
-                
-                if mode == "Single Item":
-                    item_type = st.selectbox(
-                        "What type of clothing is this?",
-                        list(tracker.clothing_categories.keys())[:-1]
-                    )
-                    name = st.text_input("Give this item a name (optional):", 
-                                       value=f"My {item_type}")
-                else:
-                    item_type = "Full Outfit"
-                    name = st.text_input("Give this outfit a name:", "My New Outfit")
-                
-                if st.button("Add to Wardrobe"):
-                    try:
-                        # Create a new event loop
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
+                    if debug_mode:
+                        st.write("Match details:", item)
                         
-                        # Run the async operation
-                        with st.spinner("Adding item to wardrobe..."):
-                            success = loop.run_until_complete(
-                                tracker.add_new_item(
-                                    image, 
-                                    item_type,
-                                    is_outfit=(mode == "Full Outfit"),
-                                    name=name
-                                )
-                            )
-                            
-                        if success:
-                            st.success("✅ Added to wardrobe!")
-                            
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-                        # Still try to add the item without AI analysis
-                        fallback_success = tracker.add_new_item_sync(
-                            image,
-                            item_type,
-                            is_outfit=(mode == "Full Outfit"),
-                            name=name
-                        )
-                        if fallback_success:
-                            st.warning("⚠️ Added to wardrobe without AI analysis")
+                elif status == "too_soon":
+                    reset_period = item.get('reset_period', tracker.reset_period)
+                    days_since = (datetime.now() - datetime.fromisoformat(item["last_worn"])).days
+                    days_remaining = max(0, reset_period - days_since)
+                    st.warning(f"⚠️ This {item['type']} needs {days_remaining} more days to reset!")
                     
-                    finally:
-                        # Clean up the event loop
+                    if 'image' in item:
+                        matched_image = tracker.base64_to_image(item['image'])
+                        if matched_image:
+                            st.image(matched_image, caption="Recently Worn Item", use_column_width=True)
+                    
+                elif status == "new":
+                    st.info("🆕 New item detected!")
+                    st.image(image, caption="Captured Image", use_column_width=True)
+                    
+                    if mode == "Single Item":
+                        item_type = st.selectbox(
+                            "What type of clothing is this?",
+                            list(tracker.clothing_categories.keys())[:-1]
+                        )
+                        name = st.text_input("Give this item a name (optional):", 
+                                        value=f"My {item_type}")
+                    else:
+                        item_type = "Full Outfit"
+                        name = st.text_input("Give this outfit a name:", "My New Outfit")
+                    
+                    if st.button("Add to Wardrobe"):
                         try:
-                            loop.close()
-                        except:
-                            pass
+                            # Create a new event loop
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            
+                            # Run the async operation
+                            with st.spinner("Adding item to wardrobe..."):
+                                success = loop.run_until_complete(
+                                    tracker.add_new_item(
+                                        image, 
+                                        item_type,
+                                        is_outfit=(mode == "Full Outfit"),
+                                        name=name
+                                    )
+                                )
+                                
+                            if success:
+                                st.success("✅ Added to wardrobe!")
+                                
+                        except Exception as e:
+                            st.error(f"Error: {str(e)}")
+                            # Still try to add the item without AI analysis
+                            fallback_success = tracker.add_new_item_sync(
+                                image,
+                                item_type,
+                                is_outfit=(mode == "Full Outfit"),
+                                name=name
+                            )
+                            if fallback_success:
+                                st.warning("⚠️ Added to wardrobe without AI analysis")
+                        
+                        finally:
+                            # Clean up the event loop
+                            try:
+                                loop.close()
+                            except:
+                                pass
     
     with tab2:
         tracker.display_wardrobe_grid()
