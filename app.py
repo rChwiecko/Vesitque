@@ -7,10 +7,15 @@ from wardrobe_tracker import WardrobeTracker
 from wardrobe_notifier import EmailNotifier
 import time  
 import asyncio  # Add this
+import threading
 import os
 from decider import decide_preference
 
-
+background_loop = asyncio.new_event_loop()
+def start_background_loop(loop):
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+threading.Thread(target=start_background_loop, args=(background_loop,), daemon=True).start()
 best = [
 { "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
 ]
@@ -315,9 +320,12 @@ def main():
                     
                     if st.button("Add to Wardrobe"):
                         try:
+                            # Get the current event loop
+                            loop = asyncio.get_event_loop()
+                            
                             # Run the async operation
                             with st.spinner("Adding item to wardrobe..."):
-                                success = asyncio.run(
+                                success = loop.run_until_complete(
                                     tracker.add_new_item(
                                         image, 
                                         item_type,
