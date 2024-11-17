@@ -195,9 +195,7 @@ class WardrobeUI:
                     unsafe_allow_html=True
                 )
             
-            # **Modified code here**
-            if st.button("📷 Add View", key=f"add_view_{item['id']}", 
-                        help="Add another photo of this item to improve recognition"):
+            if st.button("📷 Add View", key=f"add_view_{item['collection']}_{item['id']}"):
                 on_add_view(item['id'], item['collection'])
             
             st.markdown('</div>', unsafe_allow_html=True)

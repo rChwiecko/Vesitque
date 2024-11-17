@@ -21,7 +21,94 @@ worst = [
 ]
 
 
-
+def marketplace_tab(tracker, email_notifier):
+    st.subheader("🛍️ Marketplace Listings")
+    
+    # Get items that haven't been worn for 8+ days
+    current_date = datetime.now().date()
+    listed_items = []
+    
+    # First get existing listings
+    listed_items.extend(tracker.get_listings())
+    
+    # Then check for new items that should be listed
+    for item in tracker.database["items"]:
+        if "last_worn" not in item:
+            continue  # Skip items without last_worn date
+            
+        last_worn_date = datetime.fromisoformat(item["last_worn"]).date()
+        days_since = (current_date - last_worn_date).days
+        
+        # If item should be listed and isn't already
+        if days_since >= 8 and not any(listing["id"] == item["id"] for listing in listed_items):
+            if tracker.move_to_listings(item["id"], "items"):
+                listed_items = tracker.get_listings()  # Refresh listings
+    
+    if listed_items:
+        st.write(f"📦 {len(listed_items)} Items Available")
+        
+        for item in listed_items:
+            listing_key = f"listing_content_{item['id']}"
+            
+            with st.expander(f"🏷️ {item.get('name', item['type'])}"):
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    if 'image' in item:
+                        image = tracker.base64_to_image(item['image'])
+                        if image:
+                            st.image(image, use_column_width=True)
+                    
+                    st.markdown("**Item Details:**")
+                    st.markdown(f"- Type: {item['type']}")
+                    st.markdown(f"- Brand: {item.get('brand', 'Not specified')}")
+                    st.markdown(f"- Condition: {item.get('condition', 'Not specified')}")
+                    
+                    # Handle case where neither date_listed nor last_worn exists
+                    try:
+                        if 'date_listed' in item:
+                            listed_date = datetime.fromisoformat(item['date_listed'])
+                        elif 'last_worn' in item:
+                            listed_date = datetime.fromisoformat(item['last_worn'])
+                        else:
+                            listed_date = datetime.now()
+                            
+                        days_listed = (current_date - listed_date.date()).days
+                        st.markdown(f"- Listed: {days_listed} days ago")
+                    except Exception as e:
+                        st.markdown("- Recently listed")
+                
+                with col2:
+                    if listing_key not in st.session_state:
+                        with st.spinner("Creating listing description..."):
+                            listing_content = email_notifier.generate_listing_content(item)
+                            if listing_content:
+                                st.session_state[listing_key] = listing_content
+                            else:
+                                st.session_state[listing_key] = "Error generating listing content."
+                    
+                    st.markdown(st.session_state[listing_key])
+                    
+                    col3, col4 = st.columns([1, 1])
+                    with col3:
+                        if st.button("Refresh Listing", key=f"refresh_{item['id']}"):
+                            with st.spinner("Regenerating listing..."):
+                                new_content = email_notifier.generate_listing_content(item)
+                                if new_content:
+                                    st.session_state[listing_key] = new_content
+                                    st.success("Listing refreshed!")
+                    
+                    with col4:
+                        if st.button("Remove Listing", key=f"remove_{item['id']}"):
+                            if tracker.remove_from_listings(item['id']):
+                                if listing_key in st.session_state:
+                                    del st.session_state[listing_key]
+                                st.success("Item removed from marketplace!")
+                                time.sleep(0.5)
+                                st.rerun()
+    else:
+        st.info("👋 No items currently listed! Items unworn for 8+ days will appear here automatically.")
+    
 def initialize_notification_state():
     if 'notification_state' not in st.session_state:
         st.session_state.notification_state = {
@@ -52,54 +139,54 @@ def edit_wardrobe_tab(tracker):
         
     for item in all_items:
         with st.expander(f"{item.get('name', item['type'])}"):
-            col1, col2 = st.columns([2, 1])
-            
-            # Create a unique key for this item's state
-            item_key = f"edit_{item['id']}_{item['collection']}"
-            
-            with col1:
-                if 'image' in item:
-                    image = tracker.base64_to_image(item['image'])
-                    if image:
-                        st.image(image, width=200)
+            with st.form(key=f"form_{item['id']}_{item['collection']}"):
+                col1, col2 = st.columns([2, 1])
                 
-                # Use database value for initial display
-                new_wear_count = st.number_input(
-                    "Times worn",
-                    min_value=0,
-                    value=item.get('wear_count', 0),
-                    key=f"count_{item_key}"
-                )
-            
-            with col2:
-                # Use database value for initial display
-                new_last_worn = st.date_input(
-                    "Last worn date",
-                    value=datetime.fromisoformat(item["last_worn"]).date(),
-                    max_value=datetime.now().date(),
-                    key=f"date_{item_key}"
-                )
+                with col1:
+                    if 'image' in item:
+                        image = tracker.base64_to_image(item['image'])
+                        if image:
+                            st.image(image, width=200)
+                    
+                    new_wear_count = st.number_input(
+                        "Times worn",
+                        min_value=0,
+                        value=item.get('wear_count', 0),
+                        key=f"wear_count_{item['id']}_{item['collection']}"
+                    )
                 
-                days_since = (datetime.now().date() - new_last_worn).days
-                days_remaining = max(0, 7 - days_since)
-                st.warning(f"⏳ {days_remaining} days remaining")
+                with col2:
+                    new_last_worn = st.date_input(
+                        "Last worn date",
+                        value=datetime.fromisoformat(item["last_worn"]).date(),
+                        max_value=datetime.now().date(),
+                        key=f"last_worn_{item['id']}_{item['collection']}"
+                    )
+                    
+                    days_since = (datetime.now().date() - new_last_worn).days
+                    days_remaining = max(0, 7 - days_since)
+                    st.warning(f"⏳ {days_remaining} days remaining")
                 
-                # Update container to avoid clutter
-                update_container = st.container()
-                with update_container:
-                    if st.button("Update", key=f"update_{item_key}"):
-                        success = tracker.update_item(
-                            item['id'],
-                            item['collection'],
-                            datetime.combine(new_last_worn, datetime.min.time()).isoformat(),
-                            int(new_wear_count)
-                        )
-                        if success:
-                            st.success("✅ Item updated!")
-                            time.sleep(0.5)
-                            st.rerun()
+                # Place 'Update' and 'Delete' buttons inside the form
+                submitted = st.form_submit_button("Update")
+                delete_clicked = st.form_submit_button("Delete Item")
                 
-                if st.button("Delete Item", key=f"delete_{item_key}"):
+                if submitted:
+                    success = tracker.update_item(
+                        item['id'],
+                        item['collection'],
+                        datetime.combine(new_last_worn, datetime.min.time()).isoformat(),
+                        int(new_wear_count)
+                    )
+                    if success:
+                        st.success("✅ Item updated!")
+                        
+                        # Check if item should be moved to marketplace
+                        if days_since >= 8:
+                            tracker.move_to_listings(item['id'], item['collection'])
+                            st.info("📦 Item moved to marketplace due to inactivity")
+                        
+                if delete_clicked:
                     collection = item['collection']
                     tracker.database[collection] = [
                         x for x in tracker.database[collection] 
@@ -107,7 +194,7 @@ def edit_wardrobe_tab(tracker):
                     ]
                     tracker.save_database()
                     st.success("🗑️ Item deleted!")
-                    st.rerun()
+
 
 def main():
     initialize_email_settings()
@@ -176,7 +263,7 @@ def main():
             st.success(f"Default reset period updated to {new_reset_period} days!")
 
     # Main content
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe", "Notifications","Preferences"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe", "Notifications", "Preferences", "Marketplace"])
     
     with tab1:
         
@@ -494,8 +581,9 @@ def main():
         st.markdown(f"<div style='text-align: center;'>{results_list[2]}</div>", unsafe_allow_html=True)
 
 
+    with tab6:
+        marketplace_tab(tracker, email_notifier)
 
-
-
+   
 if __name__ == "__main__":
     main()

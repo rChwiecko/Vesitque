@@ -90,23 +90,30 @@ class WardrobeTracker:
     def load_database(self):
         default_db = {
             "items": [],
-            "outfits": []
+            "outfits": [],
+            "listings": []  # Add listings to the default database structure
         }
         
         try:
             if self.db_path.exists():
                 with open(self.db_path) as f:
                     db = json.load(f)
+                    
+                    # Ensure all keys exist in the database
                     if "outfits" not in db:
                         db["outfits"] = []
                     if "items" not in db:
                         db["items"] = []
+                    if "listings" not in db:  # Check for the listings key
+                        db["listings"] = []
+                    
                     return db
             else:
                 return default_db
         except Exception as e:
             st.error(f"Error loading database: {str(e)}")
             return default_db
+
 
     def visualize_analysis(self, image, features, matching_item=None):
         """Visualize the analysis process in debug mode"""
@@ -373,7 +380,8 @@ class WardrobeTracker:
             
             col1, col2 = st.columns([3, 1])
             with col2:
-                if st.button("Add View", key=f"add_view_{item['id']}"):
+                if st.button("Add View", key=f"add_view_{item['collection']}_{item['id']}"):
+
                     st.session_state['adding_view_to'] = item['id']
                     st.session_state['adding_view_type'] = 'outfit' if item.get('type') == 'Full Outfit' else 'item'
             
@@ -405,11 +413,16 @@ class WardrobeTracker:
         if st.session_state.get('debug_mode', False):
             self.visualize_analysis(image, features)
 
+        # Combine items from wardrobe and listings
         items_to_check = self.database["outfits"] if is_outfit else self.database["items"]
+        listings_to_check = self.database.get("listings", [])
+        all_items_to_check = items_to_check + listings_to_check
+
         matching_item = None
         best_similarity = 0
+        matching_collection = None
 
-        for item in items_to_check:
+        for item in all_items_to_check:
             try:
                 # Use reference_features for matching
                 reference_features = [np.array(f) for f in item.get('reference_features', [])]
@@ -425,18 +438,26 @@ class WardrobeTracker:
                 if similarity > self.similarity_threshold and similarity > best_similarity:
                     matching_item = item
                     best_similarity = similarity
+                    matching_collection = 'listings' if item in listings_to_check else ('outfits' if is_outfit else 'items')
             except Exception as e:
                 st.warning(f"Error comparing items: {str(e)}")
                 continue
 
         if matching_item:
+            if matching_collection == 'listings':
+                # Move the item back to the wardrobe
+                self.move_back_from_listings(matching_item['id'])
+                st.info(f"Item '{matching_item.get('name', matching_item['type'])}' moved back to wardrobe.")
+                # Update the collection to 'items' or 'outfits' as appropriate
+                matching_collection = 'outfits' if is_outfit else 'items'
+
             # Increment wear count
-            collection = "outfits" if is_outfit else "items"
-            new_count = self.increment_wear_count(matching_item['id'], collection)
+            new_count = self.increment_wear_count(matching_item['id'], matching_collection)
             st.success(f"Updated wear count to {new_count}")
             return "existing", matching_item, best_similarity
 
         return "new", None, 0
+
     
     def update_item(self, item_id, collection, new_last_worn, new_wear_count):
         """Update item details only when update button is clicked"""
@@ -467,3 +488,108 @@ class WardrobeTracker:
         except Exception as e:
             st.error(f"Error incrementing wear count: {str(e)}")
             return None
+    
+    def move_to_listings(self, item_id, collection):
+        """Move an item to the listings collection."""
+        try:
+            # First find the item
+            item_to_move = None
+            for item in self.database[collection]:
+                if item["id"] == item_id:
+                    item_to_move = item
+                    break
+            
+            if not item_to_move:
+                return False
+                
+            # Check if listings key exists, create if not
+            if "listings" not in self.database:
+                self.database["listings"] = []
+                
+            # Check if item is already in listings
+            if any(listing["id"] == item_id for listing in self.database["listings"]):
+                return False
+                
+            # Remove the item from the current collection
+            self.database[collection] = [
+                x for x in self.database[collection] if x["id"] != item_id
+            ]
+
+            # Create listing entry
+            listing_item = {
+                **item_to_move,
+                "date_listed": datetime.now().isoformat(),
+                "original_collection": collection
+            }
+            
+            # Add to listings
+            self.database["listings"].append(listing_item)
+            self.save_database()
+            return True
+            
+        except Exception as e:
+            st.error(f"Error moving item to listings: {str(e)}")
+            return False
+
+    def generate_listing_description(self, item):
+        """Generate a listing description for an item."""
+        try:
+            # Placeholder logic for AI-based generation
+            description = f"Check out this amazing {item['type']}! It's perfect for {', '.join(item.get('use_case', ['everyday use']))}."
+            return description
+        except Exception as e:
+            st.error(f"Error generating listing description: {str(e)}")
+            return "A wonderful item waiting to find a new home!"
+       
+
+
+    def remove_from_listings(self, item_id):
+        """Remove an item from the listings collection."""
+        try:
+            if "listings" not in self.database:
+                return False
+                
+            # Remove the item from listings
+            self.database["listings"] = [
+                x for x in self.database["listings"] 
+                if x["id"] != item_id
+            ]
+            
+            self.save_database()
+            return True
+            
+        except Exception as e:
+            st.error(f"Error removing item from listings: {str(e)}")
+            return False
+
+    def get_listings(self):
+        """Get all current listings."""
+        try:
+            if "listings" not in self.database:
+                self.database["listings"] = []
+                self.save_database()
+            return self.database["listings"]
+        except Exception as e:
+            st.error(f"Error getting listings: {str(e)}")
+            return []
+    def move_back_from_listings(self, item_id):
+        """Move an item from listings back to the appropriate wardrobe collection."""
+        try:
+            # Find the item in listings
+            for item in self.database["listings"]:
+                if item["id"] == item_id:
+                    # Determine original collection
+                    original_collection = item.get("original_collection", "items")
+                    # Remove from listings
+                    self.database["listings"] = [
+                        x for x in self.database["listings"] 
+                        if x["id"] != item_id
+                    ]
+                    # Add back to the wardrobe
+                    self.database[original_collection].append(item)
+                    self.save_database()
+                    return True
+            return False
+        except Exception as e:
+            st.error(f"Error moving item back from listings: {str(e)}")
+            return False
