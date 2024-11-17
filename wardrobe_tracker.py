@@ -22,7 +22,7 @@ import seaborn as sns
 from wardrobe_analysis import WardrobeAnalysis
 import asyncio  # Add this
 from classifier import classify_outfit  # Add this
-
+from event_loop import background_loop
 class WardrobeTracker:
     def __init__(self, feature_extractor):
         self.feature_extractor = feature_extractor
@@ -142,7 +142,7 @@ class WardrobeTracker:
             
             try:
                 # Import the background_loop from main.py
-                from main import background_loop
+                from app import background_loop
 
                 # Run the async function in the background event loop
                 future = asyncio.run_coroutine_threadsafe(classify_outfit(rgb_image), background_loop)

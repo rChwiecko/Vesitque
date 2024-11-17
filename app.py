@@ -10,12 +10,8 @@ import asyncio  # Add this
 import threading
 import os
 from decider import decide_preference
+from event_loop import background_loop
 
-background_loop = asyncio.new_event_loop()
-def start_background_loop(loop):
-    asyncio.set_event_loop(loop)
-    loop.run_forever()
-threading.Thread(target=start_background_loop, args=(background_loop,), daemon=True).start()
 best = [
 { "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
 ]
@@ -320,18 +316,12 @@ def main():
                     
                     if st.button("Add to Wardrobe"):
                         try:
-                            # Get the current event loop
-                            loop = asyncio.get_event_loop()
-                            
-                            # Run the async operation
                             with st.spinner("Adding item to wardrobe..."):
-                                success = loop.run_until_complete(
-                                    tracker.add_new_item(
-                                        image, 
-                                        item_type,
-                                        is_outfit=(mode == "Full Outfit"),
-                                        name=name
-                                    )
+                                success = tracker.add_new_item(
+                                    image,
+                                    item_type,
+                                    is_outfit=(mode == "Full Outfit"),
+                                    name=name
                                 )
                                 
                             if success:
@@ -358,6 +348,7 @@ def main():
                             st.session_state['image_status'] = None
                             st.session_state['image_item'] = None
                             st.session_state['image_similarity'] = None
+
             else:
                 # Reset session state when no camera input
                 st.session_state['current_image'] = None
