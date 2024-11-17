@@ -1,208 +1,360 @@
+from ui_components import WardrobeUI 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import streamlit as st
 import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import MinMaxScaler
-import matplotlib.pyplot as plt
-import seaborn as sns
+from PIL import Image
+import base64
+from io import BytesIO
+import json
+from datetime import datetime, timedelta
+from pathlib import Path
+import streamlit as st
+import numpy as np
+from PIL import Image
+import base64
+from io import BytesIO
 import cv2
-
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+import seaborn as sns
+from wardrobe_analysis import WardrobeAnalysis
 class WardrobeTracker:
     def __init__(self, feature_extractor):
         self.feature_extractor = feature_extractor
         self.db_path = Path("clothing_database.json")
-        self.similarity_threshold = 0.70
+        self.similarity_threshold = 0.80
+        self.reset_period = 7  # Days before an outfit can be worn again
         self.database = self.load_database()
+        
+        # Define clothing categories with emojis
+        self.clothing_categories = {
+            "T-Shirt": "👕",
+            "Hoodie": "🧥",
+            "Jacket": "🧥",
+            "Pants": "👖",
+            "Shorts": "🩳",
+            "Dress": "👗",
+            "Skirt": "👗",
+            "Shoes": "👟",
+            "Hat": "🧢",
+            "Accessory": "👔",
+            "Full Outfit": "👔"
+        }
 
     def load_database(self):
-        """Load or create database"""
+        default_db = {
+            "items": [],
+            "outfits": []
+        }
+        
         try:
             if self.db_path.exists():
                 with open(self.db_path) as f:
-                    return json.load(f)
+                    db = json.load(f)
+                    if "outfits" not in db:
+                        db["outfits"] = []
+                    if "items" not in db:
+                        db["items"] = []
+                    return db
             else:
-                return {"items": []}
+                return default_db
         except Exception as e:
             st.error(f"Error loading database: {str(e)}")
-            return {"items": []}
+            return default_db
+
+    def visualize_analysis(self, image, features, matching_item=None):
+        """Visualize the analysis process in debug mode"""
+        WardrobeAnalysis.visualize_analysis(image, features, matching_item, self.base64_to_image)
+    def add_new_item(self, image, item_type, is_outfit=False, name=None, existing_id=None):
+        """Add new item or add view to existing item with wear count"""
+        features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
+        if features is None:
+            return False
+
+        if existing_id is not None:
+            # Add new view to existing item
+            collection = "outfits" if is_outfit else "items"
+            for item in self.database[collection]:
+                if item['id'] == existing_id:
+                    if 'reference_images' not in item:
+                        item['reference_images'] = []
+                        item['reference_features'] = []
+                        item['reference_images'].append(item['image'])
+                        item['reference_features'].append(item['features'])
+                    
+                    item['reference_images'].append(self.image_to_base64(image))
+                    item['reference_features'].append(features.tolist())
+                    self.save_database()
+                    return True
+            return False
+        else:
+            # Create new item with initial view and wear count
+            collection = "outfits" if is_outfit else "items"
+            new_item = {
+                "id": len(self.database[collection]),
+                "type": item_type,
+                "name": name or item_type,
+                "reference_images": [self.image_to_base64(image)],
+                "reference_features": [features.tolist()],
+                "last_worn": datetime.now().isoformat(),
+                "image": self.image_to_base64(image),
+                "features": features.tolist(),
+                "reset_period": 7,
+                "wear_count": 1  # Initialize wear count
+            }
+            
+            self.database[collection].append(new_item)
+            self.save_database()
+            return True
+    
+        # 4. Similarity Analysis (if there's a match)
+        if matching_item is not None:
+            st.write("### 🎯 Similarity Matching")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("#### Matched Item")
+                if 'image' in matching_item:
+                    matched_image = self.base64_to_image(matching_item['image'])
+                    if matched_image:
+                        st.image(matched_image, use_column_width=True)
+                
+            with col2:
+                st.write("#### Similarity Metrics")
+                stored_features = np.array(matching_item["features"])
+                
+                # Calculate various similarity metrics
+                cosine_sim = self.feature_extractor.calculate_similarity(features, stored_features)
+                feature_diff = np.abs(features - stored_features[:len(features)])
+                diff_mean = feature_diff.mean()
+                
+                # Display metrics
+                metrics = {
+                    "Similarity Score": f"{cosine_sim:.3f}",
+                    "Feature Match": f"{(1 - diff_mean):.3f}",
+                    "Confidence": f"{max(0, min(1, cosine_sim)):.3f}"
+                }
+                
+                for metric, value in metrics.items():
+                    st.metric(metric, value)
+                
+                # Visualize feature differences
+                fig, ax = plt.subplots()
+                ax.hist(feature_diff, bins=50, color='blue', alpha=0.6)
+                ax.set_title("Feature Differences Distribution")
+                ax.axvline(diff_mean, color='red', linestyle='--', 
+                          label=f'Mean Diff: {diff_mean:.3f}')
+                ax.legend()
+                st.pyplot(fig)
 
     def save_database(self):
-        """Save database to file"""
         try:
             with open(self.db_path, "w") as f:
                 json.dump(self.database, f, indent=4)
         except Exception as e:
             st.error(f"Error saving database: {str(e)}")
 
-    def find_matching_item(self, features):
-        """Find matching item with debug info"""
-        if features is None:
-            return None, 0
-            
-        matches = []
-        
-        for item in self.database["items"]:
-            try:
-                stored_features = np.array(item["features"])
-                similarity = self.feature_extractor.calculate_similarity(features, stored_features)
-                matches.append({
-                    "item": item,
-                    "similarity": similarity
-                })
-            except Exception as e:
-                st.warning(f"Error comparing with item {item.get('id', 'unknown')}: {str(e)}")
-                continue
-        
-        # Sort by similarity
-        matches.sort(key=lambda x: x["similarity"], reverse=True)
-        
-        # Show debug info
-        if matches:
-            st.write("### Similarity Scores:")
-            for match in matches[:3]:  # Show top 3 matches
-                st.write(f"- Match score: {match['similarity']:.3f} for {match['item']['type']}")
-            
-            if matches[0]["similarity"] > self.similarity_threshold:
-                return matches[0]["item"], matches[0]["similarity"]
-        return None, 0
+    def image_to_base64(self, image):
+        """Convert PIL Image to base64 string"""
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG", quality=85)  # Reduced quality for storage
+        return base64.b64encode(buffered.getvalue()).decode()
 
-    def visualize_comparison(self, current_image, current_features, matching_item=None):
-        """Visualize feature comparison between current and matched item"""
-        st.write("## Feature Analysis")
-        
-        # Color Analysis
-        st.write("### Color Comparison")
-        img_np = np.array(current_image)
-        
-        # Extract dominant colors
-        pixels = img_np.reshape(-1, 3)
-        kmeans = KMeans(n_clusters=5, n_init=10)
-        kmeans.fit(pixels)
-        colors = kmeans.cluster_centers_.astype(int)
-        
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4))
-        
-        # Current image histogram
-        for i, color in enumerate(['r', 'g', 'b']):
-            hist = cv2.calcHist([img_np], [i], None, [256], [0, 256])
-            ax1.plot(hist, color=color, alpha=0.7, label=f'Current {color}')
-        ax1.set_title("Color Distribution")
-        ax1.legend()
-        
-        # Dominant colors
-        for idx, color in enumerate(colors):
-            ax2.add_patch(plt.Rectangle((idx, 0), 1, 1, color=color/255))
-        ax2.set_xlim(0, len(colors))
-        ax2.set_ylim(0, 1)
-        ax2.set_title("Dominant Colors")
-        
-        # Feature comparison if there's a match
-        if matching_item:
-            stored_features = np.array(matching_item["features"])
-            min_length = min(len(current_features), len(stored_features))
-            
-            # Normalize features for visualization
-            scaler = MinMaxScaler()
-            current_norm = scaler.fit_transform(current_features[:min_length].reshape(-1, 1)).flatten()
-            stored_norm = scaler.transform(stored_features[:min_length].reshape(-1, 1)).flatten()
-            
-            # Plot feature differences
-            diff = np.abs(current_norm - stored_norm)
-            ax3.hist(diff, bins=50, color='blue', alpha=0.6)
-            ax3.set_title("Feature Difference Distribution")
-            ax3.axvline(diff.mean(), color='red', linestyle='--', label=f'Mean Diff: {diff.mean():.3f}')
-            ax3.legend()
-        
-        st.pyplot(fig)
-        
-        self._show_pattern_analysis(img_np, current_features)
-        self._show_matching_analysis(current_features, matching_item)
+    def base64_to_image(self, base64_string):
+        """Convert base64 string back to PIL Image"""
+        try:
+            image_data = base64.b64decode(base64_string)
+            return Image.open(BytesIO(image_data))
+        except Exception as e:
+            st.error(f"Error converting image: {str(e)}")
+            return None
 
-    def _show_pattern_analysis(self, img_np, current_features):
-        st.write("### Pattern Recognition")
-        col1, col2 = st.columns(2)
+    def add_demo_data(self):
+        """Add demo outfits with specific wear dates, reset periods, and wear counts"""
+        sample_colors = [(200, 150, 150), (150, 200, 150), (150, 150, 200)]
+        demo_outfits = []
         
-        with col1:
-            st.write("Edge Detection")
-            gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-            edges = cv2.Canny(gray, 50, 150)
-            st.image(edges, caption="Detected Edges", use_column_width=True)
-        
-        with col2:
-            st.write("Feature Heatmap")
-            feature_length = len(current_features)
-            map_size = int(np.sqrt(feature_length/4))
+        for i, (name, days_ago, reset_period, wear_count) in enumerate([
+            ("Casual Friday", 4, 4, 3),
+            ("Business Meeting", 6, 4, 2),
+            ("Weekend Style", 2, 4, 5)
+        ]):
+            img = Image.new('RGB', (300, 400), sample_colors[i])
             
-            try:
-                feature_map = current_features[:map_size*map_size].reshape(map_size, map_size)
-                fig, ax = plt.subplots()
-                sns.heatmap(feature_map, ax=ax)
-                ax.set_title("Feature Distribution")
-                st.pyplot(fig)
-            except Exception:
-                st.write("Could not create feature heatmap")
-                st.write(f"Feature length: {feature_length}")
+            demo_outfits.append({
+                "id": i,
+                "name": name,
+                "type": "Full Outfit",
+                "last_worn": (datetime.now() - timedelta(days=days_ago)).isoformat(),
+                "features": [0] * 2048,
+                "image": self.image_to_base64(img),
+                "reset_period": reset_period,
+                "wear_count": wear_count  # Add wear count to demo data
+            })
+        
+        self.database["outfits"] = []
+        self.database["outfits"].extend(demo_outfits)
+        self.save_database()
+        st.success("Demo data loaded successfully!")
 
-    def _show_matching_analysis(self, current_features, matching_item):
-        if matching_item:
-            st.write("### Similarity Analysis")
-            stored_features = np.array(matching_item["features"])
-            min_length = min(len(current_features), len(stored_features))
+    def display_wardrobe_grid(self):
+        """Display wardrobe items using the UI components"""
+        # Remove the st.write("## Your Wardrobe") line - let WardrobeUI handle the header
+        
+        # Combine items and outfits
+        all_items = (
+            [{"type": "item", **item} for item in self.database["items"]] +
+            [{"type": "outfit", **outfit} for outfit in self.database["outfits"]]
+        )
+        
+        def handle_add_view(item):
+            st.session_state['adding_view_to'] = item['id']
+            st.session_state['adding_view_type'] = 'outfit' if item.get('type') == 'Full Outfit' else 'item'
+        
+        def handle_capture(camera):
+            image = Image.open(camera)
+            success = self.add_new_item(
+                image,
+                item['type'],
+                is_outfit=(st.session_state['adding_view_type'] == 'outfit'),
+                existing_id=st.session_state['adding_view_to']
+            )
+            if success:
+                st.success("✅ Added new view!")
+                st.session_state.pop('adding_view_to')
+                st.rerun()
+        
+        # Render the wardrobe grid
+        WardrobeUI.render_wardrobe_grid(all_items, self.base64_to_image, handle_add_view)
+        # Handle view addition modal if needed
+        if 'adding_view_to' in st.session_state:
+            for item in all_items:
+                if item['id'] == st.session_state['adding_view_to']:
+                    WardrobeUI.render_add_view_modal(item, handle_capture)
+                    break
+
+    def display_item_card(self, item):
+        """Display a single item/outfit card with image and multi-view support"""
+        with st.container():
+            st.markdown("""
+                <style>
+                .clothing-card {
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    padding: 10px;
+                    margin-bottom: 15px;
+                }
+                </style>
+            """, unsafe_allow_html=True)
             
-            scaler = MinMaxScaler()
-            current_norm = scaler.fit_transform(current_features[:min_length].reshape(-1, 1)).flatten()
-            stored_norm = scaler.transform(stored_features[:min_length].reshape(-1, 1)).flatten()
-            diff = np.abs(current_norm - stored_norm)
+            emoji = self.clothing_categories.get(item.get('type', 'Other'), '👕')
             
-            col1, col2 = st.columns(2)
+            if 'image' in item:
+                try:
+                    image = self.base64_to_image(item['image'])
+                    if image:
+                        st.image(image, use_column_width=True)
+                except Exception:
+                    st.image("placeholder.png", use_column_width=True)
             
-            with col1:
-                matching_features = np.where(diff < diff.mean())[0]
-                st.metric("Strong Matching Points", len(matching_features))
-                st.metric("Similarity Score", f"{self.feature_extractor.calculate_similarity(current_features, stored_features):.3f}")
+            st.markdown(f"### {emoji} {item.get('name', item['type'])}")
             
+            # Display wear count
+            wear_count = item.get('wear_count', 0)
+            st.markdown(f"👕 Worn {wear_count} times")
+            
+            last_worn = datetime.fromisoformat(item["last_worn"])
+            days_since = (datetime.now() - last_worn).days
+            days_remaining = max(0, item.get('reset_period', 7) - days_since)
+            
+            st.warning(f"⏳ {days_remaining} days remaining")
+            st.caption(f"Last worn: {last_worn.strftime('%Y-%m-%d')}")
+            
+            if 'reference_images' in item:
+                num_views = len(item['reference_images'])
+                st.caption(f"📸 {num_views} views of this item")
+            
+            col1, col2 = st.columns([3, 1])
             with col2:
-                corr = np.corrcoef(current_norm[:100], stored_norm[:100])[0,1]
-                st.metric("Feature Correlation", f"{corr:.3f}")
-                st.metric("Pattern Match", f"{(1 - diff.mean()):.3f}")
+                if st.button("Add View", key=f"add_view_{item['id']}"):
+                    st.session_state['adding_view_to'] = item['id']
+                    st.session_state['adding_view_type'] = 'outfit' if item.get('type') == 'Full Outfit' else 'item'
             
-            self._show_feature_importance(current_features, stored_features)
+            if st.session_state.get('adding_view_to') == item['id']:
+                camera = st.camera_input(
+                    "Take another photo of this item",
+                    key=f"camera_view_{item['id']}"
+                )
+                if camera:
+                    image = Image.open(camera)
+                    success = self.add_new_item(
+                        image,
+                        item['type'],
+                        is_outfit=(st.session_state['adding_view_type'] == 'outfit'),
+                        existing_id=item['id']
+                    )
+                    if success:
+                        st.success("✅ Added new view!")
+                        st.session_state.pop('adding_view_to')
+                        st.rerun()
 
-    def _show_feature_importance(self, current_features, stored_features):
-        st.write("### Feature Importance")
-        feature_importance = np.abs(current_features - stored_features[:len(current_features)])
-        top_n = 10
-        top_indices = np.argsort(feature_importance)[-top_n:]
-        
-        fig, ax = plt.subplots(figsize=(10, 4))
-        ax.bar(range(top_n), feature_importance[top_indices])
-        ax.set_title(f"Top {top_n} Most Different Features")
-        st.pyplot(fig)
 
-    def process_image(self, image):
-        """Process image with improved matching and visualization"""
-        features = self.feature_extractor.extract_features(image)
+    def process_image(self, image, is_outfit=False):
+        """Process image with correct wear count handling"""
+        features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
             return "error", None, 0
-            
-        matching_item, similarity = self.find_matching_item(features)
 
         if st.session_state.get('debug_mode', False):
-            self.visualize_comparison(image, features, matching_item)
+            self.visualize_analysis(image, features)
+
+        items_to_check = self.database["outfits"] if is_outfit else self.database["items"]
+        matching_item = None
+        best_similarity = 0
+
+        for item in items_to_check:
+            try:
+                if 'reference_features' in item:
+                    similarity = self.feature_extractor.calculate_similarity_multi_view(
+                        features,
+                        [np.array(f) for f in item['reference_features']]
+                    )
+                else:
+                    stored_features = np.array(item["features"])
+                    similarity = self.feature_extractor.calculate_similarity(features, stored_features)
+
+                if similarity > self.similarity_threshold and similarity > best_similarity:
+                    matching_item = item
+                    best_similarity = similarity
+            except Exception as e:
+                st.warning(f"Error comparing items: {str(e)}")
+                continue
 
         if matching_item:
-            last_worn = datetime.fromisoformat(matching_item["last_worn"])
-            days_since_worn = (datetime.now() - last_worn).days
-            
-            st.write(f"Days since last worn: {days_since_worn}")
-            
-            if days_since_worn >= 2:
+            # Check if this is a new wear or just an update
+            if not st.session_state.get('updating_item', False):
+                # Only increment wear count if this is a new wear (not an update)
+                matching_item["wear_count"] = matching_item.get("wear_count", 0) + 1
                 matching_item["last_worn"] = datetime.now().isoformat()
-                matching_item["days_unworn"] = 0
-                self.save_database()
-                return "existing", matching_item, similarity
-            else:
-                return "too_soon", matching_item, similarity
+            self.save_database()
+            return "existing", matching_item, best_similarity
+
         return "new", None, 0
+
+    
+    def update_item(self, item_id, collection, new_last_worn, new_wear_count):
+        """Properly update item details without incrementing wear count"""
+        try:
+            st.session_state['updating_item'] = True  # Flag to prevent wear count increment
+            for item in self.database[collection]:
+                if item['id'] == item_id:
+                    item["last_worn"] = new_last_worn
+                    item["wear_count"] = new_wear_count  # Directly set the wear count
+                    item["reset_period"] = 7
+                    self.save_database()
+                    return True
+        finally:
+            st.session_state['updating_item'] = False  # Reset the flag
+        return False
