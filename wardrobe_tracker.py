@@ -133,7 +133,7 @@ class WardrobeTracker:
             ax.set_title("Top Feature Values")
             st.pyplot(fig)
     def add_new_item(self, image, item_type, is_outfit=False, name=None, existing_id=None):
-        """Add new item or add view to existing item"""
+        """Add new item or add view to existing item with wear count"""
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
             return False
@@ -146,18 +146,16 @@ class WardrobeTracker:
                     if 'reference_images' not in item:
                         item['reference_images'] = []
                         item['reference_features'] = []
-                        # Move original image and features to lists
                         item['reference_images'].append(item['image'])
                         item['reference_features'].append(item['features'])
                     
-                    # Add new view
                     item['reference_images'].append(self.image_to_base64(image))
                     item['reference_features'].append(features.tolist())
                     self.save_database()
                     return True
             return False
         else:
-            # Create new item with initial view
+            # Create new item with initial view and wear count
             collection = "outfits" if is_outfit else "items"
             new_item = {
                 "id": len(self.database[collection]),
@@ -166,9 +164,10 @@ class WardrobeTracker:
                 "reference_images": [self.image_to_base64(image)],
                 "reference_features": [features.tolist()],
                 "last_worn": datetime.now().isoformat(),
-                "image": self.image_to_base64(image),  # Keep one as primary for display
-                "features": features.tolist(),  # Keep one as primary for quick matching
-                "reset_period": 7
+                "image": self.image_to_base64(image),
+                "features": features.tolist(),
+                "reset_period": 7,
+                "wear_count": 1  # Initialize wear count
             }
             
             self.database[collection].append(new_item)
@@ -238,14 +237,14 @@ class WardrobeTracker:
             return None
 
     def add_demo_data(self):
-        """Add demo outfits with specific wear dates and reset periods"""
+        """Add demo outfits with specific wear dates, reset periods, and wear counts"""
         sample_colors = [(200, 150, 150), (150, 200, 150), (150, 150, 200)]
         demo_outfits = []
         
-        for i, (name, days_ago, reset_period) in enumerate([
-            ("Casual Friday", 4, 4),
-            ("Business Meeting", 6, 4),
-            ("Weekend Style", 2, 4)
+        for i, (name, days_ago, reset_period, wear_count) in enumerate([
+            ("Casual Friday", 4, 4, 3),
+            ("Business Meeting", 6, 4, 2),
+            ("Weekend Style", 2, 4, 5)
         ]):
             img = Image.new('RGB', (300, 400), sample_colors[i])
             
@@ -256,7 +255,8 @@ class WardrobeTracker:
                 "last_worn": (datetime.now() - timedelta(days=days_ago)).isoformat(),
                 "features": [0] * 2048,
                 "image": self.image_to_base64(img),
-                "reset_period": reset_period  # Add custom reset period
+                "reset_period": reset_period,
+                "wear_count": wear_count  # Add wear count to demo data
             })
         
         self.database["outfits"] = []
@@ -303,7 +303,6 @@ class WardrobeTracker:
     def display_item_card(self, item):
         """Display a single item/outfit card with image and multi-view support"""
         with st.container():
-            # Add card styling
             st.markdown("""
                 <style>
                 .clothing-card {
@@ -315,10 +314,8 @@ class WardrobeTracker:
                 </style>
             """, unsafe_allow_html=True)
             
-            # Get emoji for item type
             emoji = self.clothing_categories.get(item.get('type', 'Other'), '👕')
             
-            # Display primary image
             if 'image' in item:
                 try:
                     image = self.base64_to_image(item['image'])
@@ -327,31 +324,29 @@ class WardrobeTracker:
                 except Exception:
                     st.image("placeholder.png", use_column_width=True)
             
-            # Display item name with emoji
             st.markdown(f"### {emoji} {item.get('name', item['type'])}")
             
-            # Calculate and display countdown
+            # Display wear count
+            wear_count = item.get('wear_count', 0)
+            st.markdown(f"👕 Worn {wear_count} times")
+            
             last_worn = datetime.fromisoformat(item["last_worn"])
             days_since = (datetime.now() - last_worn).days
             days_remaining = max(0, item.get('reset_period', 7) - days_since)
             
-            # Show countdown warning
             st.warning(f"⏳ {days_remaining} days remaining")
             st.caption(f"Last worn: {last_worn.strftime('%Y-%m-%d')}")
             
-            # Add view counter if item has multiple views
             if 'reference_images' in item:
                 num_views = len(item['reference_images'])
                 st.caption(f"📸 {num_views} views of this item")
             
-            # Add button for new views
             col1, col2 = st.columns([3, 1])
             with col2:
                 if st.button("Add View", key=f"add_view_{item['id']}"):
                     st.session_state['adding_view_to'] = item['id']
                     st.session_state['adding_view_type'] = 'outfit' if item.get('type') == 'Full Outfit' else 'item'
             
-            # Handle view addition if in progress
             if st.session_state.get('adding_view_to') == item['id']:
                 camera = st.camera_input(
                     "Take another photo of this item",
@@ -372,12 +367,11 @@ class WardrobeTracker:
 
 
     def process_image(self, image, is_outfit=False):
-        """Enhanced image processing with multi-view matching"""
+        """Process image with correct wear count handling"""
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
             return "error", None, 0
 
-        # Call visualize_analysis when debug_mode is enabled
         if st.session_state.get('debug_mode', False):
             self.visualize_analysis(image, features)
 
@@ -387,14 +381,12 @@ class WardrobeTracker:
 
         for item in items_to_check:
             try:
-                # Check if item has multiple reference features
                 if 'reference_features' in item:
                     similarity = self.feature_extractor.calculate_similarity_multi_view(
                         features,
                         [np.array(f) for f in item['reference_features']]
                     )
                 else:
-                    # Fallback to single feature comparison
                     stored_features = np.array(item["features"])
                     similarity = self.feature_extractor.calculate_similarity(features, stored_features)
 
@@ -406,19 +398,28 @@ class WardrobeTracker:
                 continue
 
         if matching_item:
-            matching_item["last_worn"] = datetime.now().isoformat()
-            matching_item["reset_period"] = 7
+            # Check if this is a new wear or just an update
+            if not st.session_state.get('updating_item', False):
+                # Only increment wear count if this is a new wear (not an update)
+                matching_item["wear_count"] = matching_item.get("wear_count", 0) + 1
+                matching_item["last_worn"] = datetime.now().isoformat()
             self.save_database()
             return "existing", matching_item, best_similarity
 
         return "new", None, 0
 
     
-    def update_item_reset_period(self, item_id, new_reset_period, collection="items"):
-        """Update an item's reset period"""
-        for item in self.database[collection]:
-            if item['id'] == item_id:
-                item['reset_period'] = new_reset_period
-                self.save_database()
-                return True
+    def update_item(self, item_id, collection, new_last_worn, new_wear_count):
+        """Properly update item details without incrementing wear count"""
+        try:
+            st.session_state['updating_item'] = True  # Flag to prevent wear count increment
+            for item in self.database[collection]:
+                if item['id'] == item_id:
+                    item["last_worn"] = new_last_worn
+                    item["wear_count"] = new_wear_count  # Directly set the wear count
+                    item["reset_period"] = 7
+                    self.save_database()
+                    return True
+        finally:
+            st.session_state['updating_item'] = False  # Reset the flag
         return False

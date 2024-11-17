@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from feature_extractor import FeatureExtractor
 from wardrobe_tracker import WardrobeTracker
-
+import time  
 def main():
     st.title("VESTIQUE - Smart Wardrobe Assistant")
     
@@ -128,42 +128,42 @@ def main():
                         image = tracker.base64_to_image(item['image'])
                         if image:
                             st.image(image, width=200)
+                            
+                    # Add wear count editor with current value
+                    current_wear_count = item.get('wear_count', 0)
+                    new_wear_count = st.number_input(
+                        "Times worn",
+                        min_value=0,
+                        value=int(current_wear_count),  # Convert to int to ensure proper type
+                        key=f"wear_count_{item['id']}_{item['collection']}"
+                    )
                 
                 with col2:
-                    # Add unique key for date_input using item ID
                     current_last_worn = datetime.fromisoformat(item["last_worn"])
                     new_last_worn = st.date_input(
                         "Last worn date",
                         value=current_last_worn.date(),
                         max_value=datetime.now().date(),
-                        key=f"date_{item['id']}_{item['collection']}"  # Added unique key
+                        key=f"date_{item['id']}_{item['collection']}"
                     )
                     
-                    # Calculate days remaining
                     days_since = (datetime.now().date() - new_last_worn).days
                     days_remaining = max(0, 7 - days_since)
                     
                     st.warning(f"⏳ {days_remaining} days remaining")
                     
-                    # Update button (already has unique key)
                     if st.button("Update", key=f"update_{item['id']}"):
-                        item["last_worn"] = datetime.combine(
-                            new_last_worn, 
-                            datetime.min.time()
-                        ).isoformat()
-                        
-                        # Always set reset_period to 7 when updating
-                        item["reset_period"] = 7
-                        
-                        # Save to correct collection
-                        collection = item.pop('collection')
-                        for idx, db_item in enumerate(tracker.database[collection]):
-                            if db_item['id'] == item['id']:
-                                tracker.database[collection][idx] = item
-                                break
-                        
-                        tracker.save_database()
-                        st.success("✅ Item updated!")
+                        # Use the new update function
+                        success = tracker.update_item(
+                            item['id'],
+                            item['collection'],
+                            datetime.combine(new_last_worn, datetime.min.time()).isoformat(),
+                            new_wear_count
+                        )
+                        if success:
+                            st.success("✅ Item updated!")
+                            time.sleep(0.5)  # Small delay to ensure the success message is seen
+                            st.rerun()
                     
                     if st.button("Delete Item", key=f"delete_{item['id']}", type="secondary"):
                         collection = item['collection']
