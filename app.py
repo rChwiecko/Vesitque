@@ -11,7 +11,7 @@ import threading
 import os
 from decider import decide_preference
 from event_loop import background_loop
-
+from email_settings import initialize_email_settings  # Import the function
 best = [
 { "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
 ]
@@ -21,15 +21,7 @@ worst = [
 ]
 
 
-def initialize_email_settings():
-    if 'email_configured' not in st.session_state:
-        st.session_state.email_configured = False
-        
-    if 'sender_email' not in st.session_state:
-        st.session_state.sender_email = ""
-        
-    if 'email_password' not in st.session_state:
-        st.session_state.email_password = ""
+
 def initialize_notification_state():
     if 'notification_state' not in st.session_state:
         st.session_state.notification_state = {
