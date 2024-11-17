@@ -4,12 +4,33 @@ import numpy as np
 from datetime import datetime, timedelta
 from feature_extractor import FeatureExtractor
 from wardrobe_tracker import WardrobeTracker
+from wardrobe_notifier import EmailNotifier
 import time  
+import os
+def initialize_email_settings():
+    if 'email_configured' not in st.session_state:
+        st.session_state.email_configured = False
+        
+    if 'sender_email' not in st.session_state:
+        st.session_state.sender_email = ""
+        
+    if 'email_password' not in st.session_state:
+        st.session_state.email_password = ""
+def initialize_notification_state():
+    if 'notification_state' not in st.session_state:
+        st.session_state.notification_state = {
+            'unworn_items': None,
+            'show_send_button': False,
+            'sending_email': False
+        }
 def main():
+    initialize_email_settings()
+    initialize_notification_state()
     st.title("VESTIQUE - Smart Wardrobe Assistant")
     
     feature_extractor = FeatureExtractor()
     tracker = WardrobeTracker(feature_extractor)
+    email_notifier = EmailNotifier()
 
     # Sidebar controls
     with st.sidebar:
@@ -26,7 +47,35 @@ def main():
         debug_mode = st.checkbox("Debug Mode")
         st.session_state['debug_mode'] = debug_mode
 
-        # Default reset period for new items
+        # Email Settings in Sidebar
+        st.divider()
+        st.subheader("📧 Email Settings")
+        with st.expander("Configure Email"):
+            sender_email = st.text_input(
+                "Gmail Address", 
+                value=st.session_state.sender_email,
+                help="Enter the Gmail address you want to send notifications from"
+            )
+            
+            email_password = st.text_input(
+                "App Password", 
+                type="password",
+                value=st.session_state.email_password,
+                help="Enter your Gmail App Password (Not your regular Gmail password). Get it from Google Account -> Security -> 2-Step Verification -> App passwords"
+            )
+            
+            if st.button("Save Email Settings"):
+                if '@gmail.com' not in sender_email:
+                    st.error("Please enter a valid Gmail address")
+                elif len(email_password) != 16:
+                    st.error("App Password should be 16 characters. Please check your Google App Password")
+                else:
+                    st.session_state.sender_email = sender_email
+                    st.session_state.email_password = email_password
+                    st.session_state.email_configured = True
+                    st.success("✅ Email settings saved!")
+
+        # Default reset period
         st.divider()
         st.subheader("Default Reset Period")
         new_reset_period = st.number_input(
@@ -40,7 +89,7 @@ def main():
             st.success(f"Default reset period updated to {new_reset_period} days!")
 
     # Main content
-    tab1, tab2, tab3 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe", "Notifications"])
     
     with tab1:
         st.subheader("Capture New Item" if mode == "Single Item" else "Capture Outfit")
@@ -68,7 +117,6 @@ def main():
                     st.write("Match details:", item)
                     
             elif status == "too_soon":
-                # Use item-specific reset period
                 reset_period = item.get('reset_period', tracker.reset_period)
                 days_since = (datetime.now() - datetime.fromisoformat(item["last_worn"])).days
                 days_remaining = max(0, reset_period - days_since)
@@ -129,12 +177,11 @@ def main():
                         if image:
                             st.image(image, width=200)
                             
-                    # Add wear count editor with current value
                     current_wear_count = item.get('wear_count', 0)
                     new_wear_count = st.number_input(
                         "Times worn",
                         min_value=0,
-                        value=int(current_wear_count),  # Convert to int to ensure proper type
+                        value=int(current_wear_count),
                         key=f"wear_count_{item['id']}_{item['collection']}"
                     )
                 
@@ -153,7 +200,6 @@ def main():
                     st.warning(f"⏳ {days_remaining} days remaining")
                     
                     if st.button("Update", key=f"update_{item['id']}"):
-                        # Use the new update function
                         success = tracker.update_item(
                             item['id'],
                             item['collection'],
@@ -162,7 +208,7 @@ def main():
                         )
                         if success:
                             st.success("✅ Item updated!")
-                            time.sleep(0.5)  # Small delay to ensure the success message is seen
+                            time.sleep(0.5)
                             st.rerun()
                     
                     if st.button("Delete Item", key=f"delete_{item['id']}", type="secondary"):
@@ -174,6 +220,97 @@ def main():
                         tracker.save_database()
                         st.success("🗑️ Item deleted!")
                         st.rerun()
+
+    # In your main.py notifications tab
+    # In your main.py, replace the notifications tab code with this:
+
+    with tab4:
+        st.subheader("📧 Email Notifications")
+        
+        recipient_email = st.text_input("Your Email Address")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            if st.button("Check Unworn Items", use_container_width=True):
+                st.write(f"Total items in database: {len(tracker.database['items'])}")
+                unworn_items = email_notifier.check_unworn_items(tracker)
+                st.session_state.notification_state['unworn_items'] = unworn_items
+                st.session_state.notification_state['show_send_button'] = True
+                
+            # Display unworn items if they exist in session state
+            if st.session_state.notification_state['unworn_items']:
+                unworn_items = st.session_state.notification_state['unworn_items']
+                st.warning(f"Found {len(unworn_items)} items unworn for 7+ days")
+                
+                with st.expander("View Unworn Items"):
+                    for item in unworn_items:
+                        st.write(f"• {item.get('name', item['type'])} - Last worn: {item['last_worn']}")
+                
+                if st.session_state.notification_state['show_send_button']:
+                    send_col1, send_col2 = st.columns([3, 1])
+                    with send_col1:
+                        if st.button("📧 Send Reminder Email", use_container_width=True):
+                            if not recipient_email:
+                                st.error("Please enter your email address first")
+                            else:
+                                status_placeholder = st.empty()
+                                progress_bar = st.progress(0)
+                                
+                                try:
+                                    # Update progress
+                                    status_placeholder.text("Generating email content...")
+                                    progress_bar.progress(25)
+                                    
+                                    # Generate content first
+                                    email_content = email_notifier.generate_personalized_content(unworn_items)
+                                    
+                                    # Show preview
+                                    progress_bar.progress(50)
+                                    status_placeholder.text("Sending email...")
+                                    
+                                    with st.expander("📧 Preview Generated Email"):
+                                        st.text(email_content)
+                                    
+                                    # Send email
+                                    success = email_notifier.send_notification(recipient_email, unworn_items)
+                                    progress_bar.progress(100)
+                                    
+                                    if success:
+                                        status_placeholder.success("✅ Email sent successfully!")
+                                        st.balloons()
+                                    else:
+                                        status_placeholder.error("Failed to send email")
+                                    
+                                    # Keep status visible for a moment
+                                    time.sleep(2)
+                                    
+                                except Exception as e:
+                                    st.error(f"Error: {str(e)}")
+                                finally:
+                                    # Clean up progress elements
+                                    progress_bar.empty()
+            
+            elif st.session_state.notification_state.get('unworn_items') == []:
+                st.success("All items in your wardrobe are being used regularly!")
+        
+        with col2:
+            if st.button("Send Test Email", use_container_width=True):
+                if not recipient_email:
+                    st.error("Please enter your email address first")
+                else:
+                    with st.spinner("Sending test email..."):
+                        test_items = [{
+                            "name": "Test Item",
+                            "type": "T-Shirt",
+                            "last_worn": datetime.now().isoformat(),
+                            "wear_count": 1
+                        }]
+                        success = email_notifier.send_notification(recipient_email, test_items)
+                        if success:
+                            st.success("Test email sent!")
+                            with st.expander("📧 Test Email Preview"):
+                                st.text(email_notifier.generate_personalized_content(test_items))
 
 if __name__ == "__main__":
     main()
