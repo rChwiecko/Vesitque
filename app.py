@@ -189,9 +189,15 @@ def main():
         
             st.subheader("Capture New Item" if mode == "Single Item" else "Capture Outfit")
             # Fix for first run
-            if st.session_state.first_run:
-                st.session_state.first_run = False
-                st.rerun()
+            # Initialize session state variables
+            if 'current_image' not in st.session_state:
+                st.session_state['current_image'] = None
+            if 'image_status' not in st.session_state:
+                st.session_state['image_status'] = None
+            if 'image_item' not in st.session_state:
+                st.session_state['image_item'] = None
+            if 'image_similarity' not in st.session_state:
+                st.session_state['image_similarity'] = None
             # Custom CSS to force the camera layout
             st.markdown("""
                 <style>
@@ -249,19 +255,27 @@ def main():
                 key="camera_input",
                 label_visibility="hidden"
             )
-            if camera is None:
-                st.session_state['image_processed'] = False
-            if camera is not None and not st.session_state['image_processed']:
-                image = Image.open(camera)
-                st.session_state.current_image = image
-                st.session_state['image_processed'] = True  # Set the flag
-                
-                # Process image
-                status, item, similarity = tracker.process_image(
-                    image, 
-                    is_outfit=(mode == "Full Outfit")
-                )
-                
+            if camera is not None:
+                if st.session_state['current_image'] is None:
+                    image = Image.open(camera)
+                    st.session_state['current_image'] = image
+
+                    # Process image
+                    status, item, similarity = tracker.process_image(
+                        image, 
+                        is_outfit=(mode == "Full Outfit")
+                    )
+
+                    st.session_state['image_status'] = status
+                    st.session_state['image_item'] = item
+                    st.session_state['image_similarity'] = similarity
+                else:
+                    image = st.session_state['current_image']
+                    status = st.session_state['image_status']
+                    item = st.session_state['image_item']
+                    similarity = st.session_state['image_similarity']
+
+                # Now, display based on status
                 if status == "existing":
                     st.success(f"✅ Found matching {item['type']}! (Similarity: {similarity:.3f})")
                     if 'image' in item:
@@ -291,23 +305,20 @@ def main():
                     if mode == "Single Item":
                         item_type = st.selectbox(
                             "What type of clothing is this?",
-                            list(tracker.clothing_categories.keys())[:-1]
+                            list(tracker.clothing_categories.keys())[:-1],
+                            key='item_type_selectbox'
                         )
                         name = st.text_input("Give this item a name (optional):", 
-                                        value=f"My {item_type}")
+                                            value=f"My {item_type}", key='item_name_input')
                     else:
                         item_type = "Full Outfit"
-                        name = st.text_input("Give this outfit a name:", "My New Outfit")
+                        name = st.text_input("Give this outfit a name:", "My New Outfit", key='outfit_name_input')
                     
                     if st.button("Add to Wardrobe"):
                         try:
-                            # Create a new event loop
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            
                             # Run the async operation
                             with st.spinner("Adding item to wardrobe..."):
-                                success = loop.run_until_complete(
+                                success = asyncio.run(
                                     tracker.add_new_item(
                                         image, 
                                         item_type,
@@ -318,6 +329,11 @@ def main():
                                 
                             if success:
                                 st.success("✅ Added to wardrobe!")
+                                # Reset the session state
+                                st.session_state['current_image'] = None
+                                st.session_state['image_status'] = None
+                                st.session_state['image_item'] = None
+                                st.session_state['image_similarity'] = None
                                 
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
@@ -330,13 +346,17 @@ def main():
                             )
                             if fallback_success:
                                 st.warning("⚠️ Added to wardrobe without AI analysis")
-                        
-                        finally:
-                            # Clean up the event loop
-                            try:
-                                loop.close()
-                            except:
-                                pass
+                            # Reset the session state
+                            st.session_state['current_image'] = None
+                            st.session_state['image_status'] = None
+                            st.session_state['image_item'] = None
+                            st.session_state['image_similarity'] = None
+            else:
+                # Reset session state when no camera input
+                st.session_state['current_image'] = None
+                st.session_state['image_status'] = None
+                st.session_state['image_item'] = None
+                st.session_state['image_similarity'] = None
     
     with tab2:
         tracker.display_wardrobe_grid()
