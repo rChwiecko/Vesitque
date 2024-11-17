@@ -275,37 +275,53 @@ class WardrobeTracker:
 
     def display_wardrobe_grid(self):
         """Display wardrobe items using the UI components"""
-        # Remove the st.write("## Your Wardrobe") line - let WardrobeUI handle the header
-        
-        # Combine items and outfits
+        # Combine items and outfits, include 'collection' key to identify source
         all_items = (
-            [{"type": "item", **item} for item in self.database["items"]] +
-            [{"type": "outfit", **outfit} for outfit in self.database["outfits"]]
+            [{"collection": "items", **item} for item in self.database["items"]] +
+            [{"collection": "outfits", **outfit} for outfit in self.database["outfits"]]
         )
         
-        def handle_add_view(item):
-            st.session_state['adding_view_to'] = item['id']
-            st.session_state['adding_view_type'] = 'outfit' if item.get('type') == 'Full Outfit' else 'item'
+        def handle_add_view(item_id, collection):
+            st.session_state['adding_view_to'] = item_id
+            st.session_state['adding_view_collection'] = collection  # 'items' or 'outfits'
         
         def handle_capture(camera):
             image = Image.open(camera)
-            success = self.add_new_item(
+            existing_id = st.session_state['adding_view_to']
+            collection = st.session_state['adding_view_collection']
+            is_outfit = (collection == 'outfits')
+            
+            # Fetch the item from the database
+            for item in self.database[collection]:
+                if item['id'] == existing_id:
+                    item_type = item['type']
+                    break
+            else:
+                st.error("Item not found.")
+                return
+
+            success = self.add_new_item_sync(
                 image,
-                item['type'],
-                is_outfit=(st.session_state['adding_view_type'] == 'outfit'),
-                existing_id=st.session_state['adding_view_to']
+                item_type,
+                is_outfit=is_outfit,
+                existing_id=existing_id
             )
             if success:
                 st.success("✅ Added new view!")
                 st.session_state.pop('adding_view_to')
+                st.session_state.pop('adding_view_collection')
                 st.rerun()
         
         # Render the wardrobe grid
         WardrobeUI.render_wardrobe_grid(all_items, self.base64_to_image, handle_add_view)
+        
         # Handle view addition modal if needed
         if 'adding_view_to' in st.session_state:
-            for item in all_items:
-                if item['id'] == st.session_state['adding_view_to']:
+            existing_id = st.session_state['adding_view_to']
+            collection = st.session_state['adding_view_collection']
+            # Fetch the item from the database
+            for item in self.database[collection]:
+                if item['id'] == existing_id:
                     WardrobeUI.render_add_view_modal(item, handle_capture)
                     break
 
@@ -390,10 +406,12 @@ class WardrobeTracker:
 
         for item in items_to_check:
             try:
-                if 'reference_features' in item:
+                # Use reference_features for matching
+                reference_features = [np.array(f) for f in item.get('reference_features', [])]
+                if reference_features:
                     similarity = self.feature_extractor.calculate_similarity_multi_view(
                         features,
-                        [np.array(f) for f in item['reference_features']]
+                        reference_features
                     )
                 else:
                     stored_features = np.array(item["features"])
@@ -407,18 +425,10 @@ class WardrobeTracker:
                 continue
 
         if matching_item:
-            # Store the pre-incremented wear count in session state
-            item_key = f"{matching_item['id']}_{is_outfit}"
-            if item_key not in st.session_state:
-                st.session_state[item_key] = {}
-            
-            st.session_state[item_key]['original_wear_count'] = matching_item.get('wear_count', 0)
-            
             # Increment wear count
             collection = "outfits" if is_outfit else "items"
             new_count = self.increment_wear_count(matching_item['id'], collection)
             st.success(f"Updated wear count to {new_count}")
-            
             return "existing", matching_item, best_similarity
 
         return "new", None, 0

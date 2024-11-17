@@ -153,7 +153,6 @@ class WardrobeUI:
             
             # Render the wardrobe card below the hanger bar
             
-            
             # Image
             if 'image' in item:
                 try:
@@ -196,12 +195,13 @@ class WardrobeUI:
                     unsafe_allow_html=True
                 )
             
-            # Add view button
+            # **Modified code here**
             if st.button("📷 Add View", key=f"add_view_{item['id']}", 
                         help="Add another photo of this item to improve recognition"):
-                on_add_view(item)
+                on_add_view(item['id'], item['collection'])
             
             st.markdown('</div>', unsafe_allow_html=True)
+
 
 
     @staticmethod
