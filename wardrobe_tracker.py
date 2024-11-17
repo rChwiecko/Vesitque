@@ -22,6 +22,7 @@ import seaborn as sns
 from wardrobe_analysis import WardrobeAnalysis
 import asyncio  # Add this
 from classifier import classify_outfit  # Add this
+from event_loop import background_loop
 class WardrobeTracker:
     def __init__(self, feature_extractor):
         self.feature_extractor = feature_extractor
@@ -110,7 +111,7 @@ class WardrobeTracker:
     def visualize_analysis(self, image, features, matching_item=None):
         """Visualize the analysis process in debug mode"""
         WardrobeAnalysis.visualize_analysis(image, features, matching_item, self.base64_to_image)
-    async def add_new_item(self, image, item_type, is_outfit=False, name=None, existing_id=None):
+    def add_new_item(self, image, item_type, is_outfit=False, name=None, existing_id=None):
         """Add new item or add view to existing item with wear count and AI analysis"""
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
@@ -140,8 +141,12 @@ class WardrobeTracker:
             rgb_image = image.convert("RGB")
             
             try:
-                # Get AI analysis
-                description = await classify_outfit(rgb_image)
+                # Import the background_loop from main.py
+                from app import background_loop
+
+                # Run the async function in the background event loop
+                future = asyncio.run_coroutine_threadsafe(classify_outfit(rgb_image), background_loop)
+                description = future.result()  # This will block until the result is available
                 
                 new_item = {
                     "id": len(self.database[collection]),
