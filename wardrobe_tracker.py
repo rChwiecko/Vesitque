@@ -376,24 +376,28 @@ class WardrobeTracker:
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
             return "error", None, 0
-            
+
+        # Call visualize_analysis when debug_mode is enabled
+        if st.session_state.get('debug_mode', False):
+            self.visualize_analysis(image, features)
+
         items_to_check = self.database["outfits"] if is_outfit else self.database["items"]
         matching_item = None
         best_similarity = 0
-        
+
         for item in items_to_check:
             try:
                 # Check if item has multiple reference features
                 if 'reference_features' in item:
                     similarity = self.feature_extractor.calculate_similarity_multi_view(
-                        features, 
+                        features,
                         [np.array(f) for f in item['reference_features']]
                     )
                 else:
                     # Fallback to single feature comparison
                     stored_features = np.array(item["features"])
                     similarity = self.feature_extractor.calculate_similarity(features, stored_features)
-                
+
                 if similarity > self.similarity_threshold and similarity > best_similarity:
                     matching_item = item
                     best_similarity = similarity
@@ -406,8 +410,9 @@ class WardrobeTracker:
             matching_item["reset_period"] = 7
             self.save_database()
             return "existing", matching_item, best_similarity
-                
+
         return "new", None, 0
+
     
     def update_item_reset_period(self, item_id, new_reset_period, collection="items"):
         """Update an item's reset period"""
