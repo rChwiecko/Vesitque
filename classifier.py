@@ -6,10 +6,10 @@ import asyncio
 import aiohttp
 import requests
 # Set your Gemini API key
-GEMINI_API_KEY = 'AIzaSyDEVhn_pfoYX_ZhYctlQ42-hB5blT8TY0g'
+GEMINI_API_KEY = 'AIzaSyC1BIQOOJ0TatPCGOtQIHiydLRv_xqTjDo'
 
 #setting up SambaNova
-LAM_API_KEY = '4beb5cb2-fd11-412c-8581-136e95629525'
+LAM_API_KEY = 'b9e39db6-fe20-4a16-9803-385f77f309c3'
 API_URL = 'https://api.sambanova.ai/v1/chat/completions'
 HEADERS = {
     "Authorization": f"Bearer {LAM_API_KEY}",
@@ -44,6 +44,7 @@ def prompt_llama(message, model="Meta-Llama-3.1-8B-Instruct", stream=False):
                 "content": '''
                     You are a highly skilled fashion designer and software engineer tasked with analyzing clothing item descriptions and generating a detailed JSON schema describing their attributes. Your goal is to examine the clothing item description and create a structured JSON response with the following categories:
                     You are to ONLY generate the JSON text with NOTHING ELSE
+                    The generated JSON MUST be syntatically correct, (example: all brackets are closed, commas in right places etc)
                     1. **Type**: The type of clothing (e.g., shirt, dress, pants, jacket).
                     2. **Material**: The material or fabric used (e.g., cotton, wool, polyester, denim).
                     3. **Color**:
