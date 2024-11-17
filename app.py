@@ -323,42 +323,60 @@ def main():
                             st.success("Test email sent!")
                             with st.expander("📧 Test Email Preview"):
                                 st.text(email_notifier.generate_personalized_content(test_items))
+    import json
+
     with tab5:
-        st.subheader("👗 Wardrobe Insights and Recommendations")
-        
-        # Input data for most and least worn items
-        most_worn_input = st.text_area("Paste JSON Data for Most Worn Items", height=200, placeholder="Enter most worn items JSON here...")
-        least_worn_input = st.text_area("Paste JSON Data for Least Worn Items", height=200, placeholder="Enter least worn items JSON here...")
-        
-        # Button to analyze wardrobe
-        if st.button("Analyze Wardrobe"):
-            try:
-                # Parse the JSON inputs
-                set_of_top_worn = eval(most_worn_input)  # Use json.loads() for safer parsing if data is JSON
-                set_of_least_worn = eval(least_worn_input)
-                
-                # Call the decide_preference function
-                with st.spinner("Analyzing wardrobe preferences..."):
-                    result = decide_preference(best, worst)
-                    
-                # Display the results
-                st.subheader("Wardrobe Analysis Results")
-                results_list = eval(result)  # Parse the result if it's a string representation of a list
-                
-                # Show most worn characteristics
-                st.markdown("### Most Worn Characteristics")
-                st.write(results_list[0][1])
-                
-                # Show least worn characteristics
-                st.markdown("### Least Worn Characteristics")
-                st.write(results_list[1][1])
-                
-                # Show overall recommendations
-                st.markdown("### Overall Recommendations")
-                st.write(results_list[2])
-            
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+        st.markdown(
+            """
+            <style>
+                .spacer {
+                    margin-bottom: 20px;
+                }
+                .center-header {
+                    text-align: center;
+                    font-size: 24px;
+                    font-weight: bold;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Centered main header
+        st.markdown("<div class='center-header'>👗 Wardrobe Insights and Recommendations</div>", unsafe_allow_html=True)
+        st.markdown("<div class='spacer'></div>", unsafe_allow_html=True)  # Add a spacer
+
+        # Call the decide_preference function
+        with st.spinner("Analyzing wardrobe preferences..."):
+            result = decide_preference(best, worst)
+
+        try:
+            # Parse the result into a list
+            results_list = json.loads(result)  # Parse JSON string into Python list
+        except json.JSONDecodeError as e:
+            st.error(f"Error parsing JSON response: {e}")
+            st.stop()
+
+        # Create a two-column layout for traits
+        col1, col2 = st.columns(2)
+
+        # Most Worn Traits
+        with col1:
+            st.markdown("### Traits of Most Worn Items")
+            st.markdown("\n".join([f"- {trait}" for trait in results_list[0][1]]))
+
+        # Least Worn Traits
+        with col2:
+            st.markdown("### Traits of Least Worn Items")
+            st.markdown("\n".join([f"- {trait}" for trait in results_list[1][1]]))
+
+        # Overall Recommendation (Centered)
+        st.markdown("---")
+        st.markdown("<div style='text-align: center; font-size: 18px; font-weight: bold;'>Overall Recommendation</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center;'>{results_list[2]}</div>", unsafe_allow_html=True)
+
+
+
 
 
 if __name__ == "__main__":
