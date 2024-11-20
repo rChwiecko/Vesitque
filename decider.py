@@ -1,5 +1,5 @@
 import requests
-LAM_API_KEY = 'b9e39db6-fe20-4a16-9803-385f77f309c3'
+LAM_API_KEY = '591a72d6-7705-4374-b3d9-1d528b17c5b3'
 API_URL = 'https://api.sambanova.ai/v1/chat/completions'
 HEADERS = {
     "Authorization": f"Bearer {LAM_API_KEY}",

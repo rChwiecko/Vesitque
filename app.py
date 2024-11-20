@@ -12,6 +12,7 @@ import os
 from decider import decide_preference
 from event_loop import background_loop
 from email_settings import initialize_email_settings  # Import the function
+import json
 best = [
 { "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
 ]
@@ -20,7 +21,107 @@ worst = [
     { "type": "sweatshirt", "material": "cotton blend", "color": { "primary": "dark navy blue", "secondary": ["white graphic"] }, "fit_and_style": { "fit": "relaxed", "style": "casual" }, "design_features": { "collar": "hooded", "closures": ["drawstring"], "embellishments": ["graphic print"], "logo": "none" }, "condition": "new", "brand": "unknown", "season": "all-season", "use_case": ["travel", "casual outings"], "size": "unknown" }
 ]
 
+def initialize_database():
+    """Initialize the database file if it doesn't exist or is empty"""
+    database_path = 'clothing_database.json'
+    initial_data = {
+        "items": [],
+        "outfits": [],
+        "listings": []
+    }
+    
+    try:
+        if not os.path.exists(database_path):
+            with open(database_path, 'w') as file:
+                json.dump(initial_data, file)
+        else:
+            # Try to load existing database
+            try:
+                with open(database_path, 'r') as file:
+                    data = json.load(file)
+                    if not isinstance(data, dict) or not all(key in data for key in initial_data.keys()):
+                        raise ValueError("Invalid database structure")
+            except (json.JSONDecodeError, ValueError):
+                # If file is corrupt, reinitialize it
+                with open(database_path, 'w') as file:
+                    json.dump(initial_data, file)
+    except Exception as e:
+        st.error(f"Error initializing database: {str(e)}")
+        # Ensure we have a valid database even if something goes wrong
+        with open(database_path, 'w') as file:
+            json.dump(initial_data, file)
 
+def preferences_tab():
+    """Handle preferences tab"""
+    try:
+        with open('clothing_database.json', 'r') as file:
+            data = json.load(file)
+            contents = data.get('items', [])
+
+        if not contents:
+            st.info("Your wardrobe is empty! Add some items to get personalized insights.")
+            return
+
+        # Find items with min and max wear count
+        min_view = float('inf')
+        max_view = -1
+        smallest_des = None
+        largest_des = None
+
+        for item in contents:
+            wear_count = item.get('wear_count', 0)
+            if 'ai_analysis' in item:
+                if wear_count < min_view:
+                    smallest_des = item['ai_analysis']
+                    min_view = wear_count
+                if wear_count > max_view:
+                    largest_des = item['ai_analysis']
+                    max_view = wear_count
+
+        if not smallest_des or not largest_des:
+            st.warning("Not enough analyzed items to generate insights.")
+            return
+
+        st.markdown(
+            """
+            <style>
+                .spacer { margin-bottom: 20px; }
+                .center-header {
+                    text-align: center;
+                    font-size: 24px;
+                    font-weight: bold;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown("<div class='center-header'>👗 Wardrobe Insights and Recommendations</div>", unsafe_allow_html=True)
+        st.markdown("<div class='spacer'></div>", unsafe_allow_html=True)
+
+        with st.spinner("Analyzing wardrobe preferences..."):
+            result = decide_preference(largest_des, smallest_des)
+            results_list = json.loads(result)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### Traits of Most Worn Items")
+            st.markdown("\n".join([f"- {trait}" for trait in results_list[0]]))
+
+        with col2:
+            st.markdown("### Traits of Least Worn Items")
+            st.markdown("\n".join([f"- {trait}" for trait in results_list[1]]))
+
+        st.markdown("---")
+        st.markdown("<div style='text-align: center; font-size: 18px; font-weight: bold;'>Overall Recommendation</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center;'>{results_list[2]}</div>", unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"Error analyzing preferences: {str(e)}")
+        if st.button("Reset Database"):
+            initialize_database()
+            st.success("Database reset successfully! Please add new items.")
+            st.rerun()
 def marketplace_tab(tracker, email_notifier):
     st.subheader("🛍️ Marketplace Listings")
     
@@ -200,6 +301,7 @@ def main():
     initialize_email_settings()
     initialize_notification_state()
     initialize_camera_state()  # Add this line
+    initialize_database()
     st.title("VESTIQUE - Smart Wardrobe Assistant")
     
     feature_extractor = FeatureExtractor()
@@ -531,62 +633,7 @@ def main():
     import json
 
     with tab5:
-        min_view, max_view = float('inf'), -1
-        with open('clothing_database.json', 'r') as file:
-            contents_packed = json.load(file)
-            contents = contents_packed['items']
-        for item in contents:
-            if item['wear_count'] < min_view:
-                smallest_des = item['ai_analysis']
-                min_view = item['wear_count']
-            if item['wear_count'] > max_view:
-                largest_des = item['ai_analysis']
-                max_view = item['wear_count']
-
-        st.markdown(
-            """
-            <style>
-                .spacer {
-                    margin-bottom: 20px;
-                }
-                .center-header {
-                    text-align: center;
-                    font-size: 24px;
-                    font-weight: bold;
-                }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        # Centered main header
-        st.markdown("<div class='center-header'>👗 Wardrobe Insights and Recommendations</div>", unsafe_allow_html=True)
-        st.markdown("<div class='spacer'></div>", unsafe_allow_html=True)  # Add a spacer
-
-        # Call the decide_preference function
-        with st.spinner("Analyzing wardrobe preferences..."):
-            result = decide_preference(largest_des, smallest_des)
-
-        # Parse the result into a list
-        results_list = json.loads(result)  # Ensure the result is a Python list
-
-        # Create a two-column layout for traits
-        col1, col2 = st.columns(2)
-
-        # Most Worn Traits
-        with col1:
-            st.markdown("### Traits of Most Worn Items")
-            st.markdown("\n".join([f"- {trait}" for trait in results_list[0]]))  # Bullet points for most worn
-
-        # Least Worn Traits
-        with col2:
-            st.markdown("### Traits of Least Worn Items")
-            st.markdown("\n".join([f"- {trait}" for trait in results_list[1]]))  # Bullet points for least worn
-
-        # Overall Recommendation (Centered)
-        st.markdown("---")
-        st.markdown("<div style='text-align: center; font-size: 18px; font-weight: bold;'>Overall Recommendation</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='text-align: center;'>{results_list[2]}</div>", unsafe_allow_html=True)
+        preferences_tab()
 
 
     with tab6:
