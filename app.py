@@ -24,7 +24,9 @@ from event_loop import background_loop
 from email_settings import initialize_email_settings
 from market_place_manager import Marketplace
 from decide_match import decide_match
-from style_advisor import StyleAdvisor
+
+from dotenv import load_dotenv
+from SambaFit import *
 
 # Load environment variables
 env_path = Path('.') / '.env'
@@ -165,56 +167,67 @@ def style_advisor_tab(tracker):
                         'season': ai_data.get('season', 'Unknown'),
                         'use_case': ai_data.get('use_case', [])
                     }
-                    
-                    if st.session_state.get('debug_mode', False):
-                        st.write("Parsed item description:", item_description)
-                
-                except (json.JSONDecodeError, IndexError) as e:
-                    st.error(f"Error parsing AI analysis: {str(e)}")
-                    if st.session_state.get('debug_mode', False):
-                        st.write("Raw AI analysis:", ai_analysis)
-                    return
 
-                # Display the item and get advice
-                col1, col2 = st.columns([1, 2])
-                
-                with col1:
-                    st.markdown('<div class="image-card">', unsafe_allow_html=True)
-                    if 'image' in selected_item:
-                        image = tracker.base64_to_image(selected_item['image'])
-                        if image:
-                            st.image(image, use_column_width=True)
-                    st.markdown(f'<div class="item-title">{item_description["name"]}</div>', 
-                              unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
+    #                 st.markdown('</div>', unsafe_allow_html=True)
+            
+    #         st.markdown('</div>', unsafe_allow_html=True)
+    # else:
+    #     st.info("Add some items to your wardrobe to get personalized style advice!")
 
-                with col2:
-                    with st.spinner("Getting style advice..."):
-                        advice = st.session_state.style_advisor.get_style_advice(item_description)
-                        
-                        if not advice.get("styling_tips"):
-                            st.warning("Unable to generate style advice. Please try again.")
-                            return
-                            
-                        st.markdown('<div class="advice-container">', unsafe_allow_html=True)
-                        st.markdown('<div class="advice-text">', unsafe_allow_html=True)
-                        st.write(advice["styling_tips"])
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        
-                        if advice.get("sources"):
-                            st.markdown('<div class="sources">', unsafe_allow_html=True)
-                            for source in advice["sources"]:
-                                st.caption(source)
-                            st.markdown('</div>', unsafe_allow_html=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.error(f"Error processing item: {str(e)}")
-                if st.session_state.get('debug_mode', False):
-                    st.write("Error details:", str(e))
-                    st.write("Selected item:", selected_item)
-    else:
-        st.info("Add some items to your wardrobe to get personalized style advice!")
+
+
+def fashion_agent(tracker):
+    st.title("🤖 SambaFit")
+    
+    st.markdown("Welcome to SambaFit! Ask me to create an oufit for the day!")
+
+    listed_items = []
+
+    # First get existing listings
+    listed_items.extend(tracker.get_listings())
+
+    model_data = []
+    for item in listed_items:
+        model_data.append({item['id']:item['ai_analysis']})
+
+    # Chat history
+    if "messages" not in st.session_state:
+        st.session_state["messages"] = []
+
+    # Display chat history
+    for message in st.session_state["messages"]:
+        if message["role"] == "user":
+            st.markdown(f"**You:** {message['content']}")
+        else:
+            st.markdown(f"**SambaFit:** {message['content']}")
+
+    # User input box
+    user_input = st.text_input("Type details here (weather, occasion etc):", key="user_input")
+
+    # Process user input
+    if user_input:
+        # Add user's message to chat history
+        st.session_state["messages"].append({"role": "user", "content": user_input})
+
+        # Generate a response (placeholder for now)
+        # Replace with API call to SambaFit AI when integrated
+        response = generate_response(user_input, model_data)
+
+        # Add bot's response to chat history
+        st.session_state["messages"].append({"role": "bot", "content": response})
+
+        # Clear the input box
+        st.session_state["user_input"] = ""
+
+
+def generate_response(user_input, data):
+    model1_res = model1_tokenize_prompt(user_input)
+    overall_res = model2_select_items(model1_res, data)
+    return overall_res
+
+
+
+
 def initialize_database():
     """Initialize the database file if it doesn't exist or is empty"""
     database_path = 'clothing_database.json'
@@ -763,9 +776,9 @@ def main():
             st.success(f"Default reset period updated to {new_reset_period} days!")
 
     # Main content
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Capture", "My Wardrobe", "Edit Wardrobe", 
-    "Notifications", "Preferences", "Marketplace", "Style Advisor"
+    "Notifications", "Preferences", "Marketplace", "Style Advisor", "SambaFit"
         ])
     
     with tab1:
@@ -1045,5 +1058,44 @@ def main():
     with tab7:
         style_advisor_tab(tracker)
         
+
+    #     # Get selected item
+    #     if tracker.database["items"]:
+    #         selected_item = st.selectbox(
+    #             "Select an item for styling advice",
+    #             options=tracker.database["items"],
+    #             format_func=lambda x: x.get('name', x['type'])
+    #         )
+            
+    #         if selected_item:
+    #             with st.spinner("Getting style advice..."):
+    #                 # Get AI analysis if it exists
+    #                 item_description = selected_item.get('ai_analysis', {})
+                    
+    #                 # Get style advice
+    #                 advice = st.session_state.style_advisor.get_style_advice(item_description)
+                    
+    #                 # Display advice
+    #                 st.markdown("### Styling Tips")
+    #                 st.write(advice["styling_tips"])
+                    
+    #                 # Display sources
+    #                 with st.expander("Sources"):
+    #                     for source in advice["sources"]:
+    #                         st.caption(f"- {source}")
+            
+    #         # Add outfit recommendations section
+    #         st.markdown("### Complete Outfit Suggestions")
+    #         if st.button("Get Outfit Recommendations"):
+    #             with st.spinner("Generating outfit ideas..."):
+    #                 recommendations = st.session_state.style_advisor.get_outfit_recommendations(
+    #                     tracker.database["items"]
+    #                 )
+    #                 st.write(recommendations["recommendations"])
+
+    with tab8:
+        fashion_agent(tracker)
+    
+
 if __name__ == "__main__":
     main()
