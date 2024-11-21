@@ -1,5 +1,5 @@
 import requests
-LAM_API_KEY = '591a72d6-7705-4374-b3d9-1d528b17c5b3'
+LAM_API_KEY = 'ba4070a0-299d-4e64-8952-0886808164b3'
 API_URL = 'https://api.sambanova.ai/v1/chat/completions'
 HEADERS = {
     "Authorization": f"Bearer {LAM_API_KEY}",
@@ -44,7 +44,6 @@ def decide_preference(top_worn, least_worn, model='Meta-Llama-3.1-70B-Instruct')
     }
     llama_res = requests.post(API_URL, headers=HEADERS, json=data)
     res_json = llama_res.json()
-    print(res_json['choices'][0]['message']['content'])
     # Check if the request was successful
     
     if llama_res.status_code == 200:
