@@ -12,7 +12,15 @@ import os
 from decider import decide_preference
 from event_loop import background_loop
 from email_settings import initialize_email_settings  # Import the function
+from style_advisor import StyleAdvisor  # Import the StyleAdvisor class
+from pathlib import Path
 import json
+
+from dotenv import load_dotenv
+# Load environment variables
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
+SAMBANOVA_API_KEY = os.getenv('SAMBANOVA_API_KEY')
 best = [
 { "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
 ]
@@ -307,7 +315,8 @@ def main():
     feature_extractor = FeatureExtractor()
     tracker = WardrobeTracker(feature_extractor)
     email_notifier = EmailNotifier()
-
+    if 'style_advisor' not in st.session_state:
+        st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)  # Use SAMBANOVA_API_KEY instead of LAM_API_KEY
     # Sidebar controls
     with st.sidebar:
         st.subheader("Settings")
@@ -365,7 +374,10 @@ def main():
             st.success(f"Default reset period updated to {new_reset_period} days!")
 
     # Main content
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe", "Notifications", "Preferences", "Marketplace"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "Capture", "My Wardrobe", "Edit Wardrobe", 
+    "Notifications", "Preferences", "Marketplace", "Style Advisor"
+        ])
     
     with tab1:
         
@@ -639,6 +651,45 @@ def main():
     with tab6:
         marketplace_tab(tracker, email_notifier)
 
-   
+    
+
+    # Add the Style Advisor tab
+    with tab7:
+        st.subheader("👔 Style Advisor")
+        
+        # Get selected item
+        if tracker.database["items"]:
+            selected_item = st.selectbox(
+                "Select an item for styling advice",
+                options=tracker.database["items"],
+                format_func=lambda x: x.get('name', x['type'])
+            )
+            
+            if selected_item:
+                with st.spinner("Getting style advice..."):
+                    # Get AI analysis if it exists
+                    item_description = selected_item.get('ai_analysis', {})
+                    
+                    # Get style advice
+                    advice = st.session_state.style_advisor.get_style_advice(item_description)
+                    
+                    # Display advice
+                    st.markdown("### Styling Tips")
+                    st.write(advice["styling_tips"])
+                    
+                    # Display sources
+                    with st.expander("Sources"):
+                        for source in advice["sources"]:
+                            st.caption(f"- {source}")
+            
+            # Add outfit recommendations section
+            st.markdown("### Complete Outfit Suggestions")
+            if st.button("Get Outfit Recommendations"):
+                with st.spinner("Generating outfit ideas..."):
+                    recommendations = st.session_state.style_advisor.get_outfit_recommendations(
+                        tracker.database["items"]
+                    )
+                    st.write(recommendations["recommendations"])
+    
 if __name__ == "__main__":
     main()
