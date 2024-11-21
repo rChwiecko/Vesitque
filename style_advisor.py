@@ -38,7 +38,7 @@ class StyleAdvisor:
         try:
             # Define the absolute path for the vector store
             vector_store_dir = Path("/Users/alexdang/Vesitque/fashion_vectors")
-            vector_store_path = vector_store_dir / "fashion_vectors.faiss"
+            vector_store_path = vector_store_dir / "index.faiss"
             
             # Debug statement to verify the path being checked
             print(f"DEBUG: Checking if vector file exists at {vector_store_path.resolve()}")
