@@ -177,7 +177,7 @@ class StyleAdvisor:
                     },
                     {
                         "role": "user",
-                        "content": f"""Using these fashion and color theory excerpts:
+                        "content": f"""Using these fashion and color theory experts:
 
     {combined_context}
 
