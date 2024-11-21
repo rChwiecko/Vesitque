@@ -5,11 +5,11 @@ import streamlit as st
 from pathlib import Path
 import requests
 import json
-from langchain.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 import torch
 
 class StyleAdvisor:
@@ -36,53 +36,78 @@ class StyleAdvisor:
     def _initialize_vector_store(self) -> None:
         """Initialize FAISS vector store with balanced document representation"""
         try:
-            # Check for existing vector store first
-            if Path('fashion_vectors.faiss').exists():
-                st.write("📚 Loading existing fashion knowledge base...")
-                self.vector_store = FAISS.load_local("fashion_vectors", self.embeddings)
-                st.success("✓ Loaded existing fashion knowledge base!")
-                return
-
-            # If no existing store, create new one with current code
-            all_docs = []
-            st.write("📚 Loading fashion guides:")
+            # Define the absolute path for the vector store
+            vector_store_dir = Path("/Users/alexdang/Vesitque/fashion_vectors")
+            vector_store_path = vector_store_dir / "fashion_vectors.faiss"
             
-            # Load documents with explicit source tracking
-            for pdf_path in self.docs_path.glob('*.pdf'):
+            # Debug statement to verify the path being checked
+            print(f"DEBUG: Checking if vector file exists at {vector_store_path.resolve()}")
+
+            # If the vector store file exists, load it
+            if vector_store_path.exists():
+                try:
+                    print("DEBUG: Vector file found! Loading...")
+                    self.vector_store = FAISS.load_local(
+                        str(vector_store_dir),
+                        self.embeddings,
+                        allow_dangerous_deserialization=True  # Add this flag
+                    )
+                    print("DEBUG: Vector store loaded successfully!")
+                    return
+                except Exception as e:
+                    logging.error(f"❌ Error loading vector store: {e}")
+                    st.error("Error loading existing vector store. Creating a new one...")
+
+            # If the file doesn't exist or load fails, create a new one
+            print("DEBUG: Vector file not found. Creating a new one...")
+            st.write("📚 No existing vector store found. Creating a new one...")
+            all_docs = []
+
+            # Load PDFs from the directory
+            st.write("📚 Loading fashion guides:")
+            for pdf_path in self.docs_path.glob("*.pdf"):
                 try:
                     st.write(f"- Loading {pdf_path.name}...")
                     loader = PyPDFLoader(str(pdf_path))
                     docs = loader.load()
-                    # Explicitly set source in metadata
                     for doc in docs:
                         doc.metadata["source"] = pdf_path.name
-                    st.write(f"  ✓ Found {len(docs)} pages")
+                    st.write(f"  ✓ Found {len(docs)} pages in {pdf_path.name}")
                     all_docs.extend(docs)
                 except Exception as e:
+                    logging.error(f"Error loading {pdf_path}: {e}")
                     st.error(f"❌ Error loading {pdf_path}: {e}")
 
             if not all_docs:
-                st.warning("⚠️ No fashion guides found")
+                st.warning("⚠️ No fashion guides found to process.")
                 return
 
-            # Split into chunks with source preservation
+            # Split documents into chunks
             st.write("🔄 Processing documents...")
             splitter = RecursiveCharacterTextSplitter(
                 chunk_size=1000,
                 chunk_overlap=200,
-                separators=["\n\n", "\n", ". ", " ", ""],
-                keep_separator=True
+                separators=["\n\n", "\n", ". ", " ", ""]
             )
             chunks = splitter.split_documents(all_docs)
             st.write(f"✓ Created {len(chunks)} text chunks")
 
-            # Create vector store
+            # Create a new vector store from chunks
             st.write("🔄 Creating vector store...")
             self.vector_store = FAISS.from_documents(chunks, self.embeddings)
-            self.vector_store.save_local("fashion_vectors")
-            st.success("✓ Fashion knowledge base created!")
+
+            # Save the vector store to disk
+            try:
+                self.vector_store.save_local(str(vector_store_dir))
+                print(f"DEBUG: Vector store created and saved at {vector_store_path.resolve()}")
+                logging.info(f"✓ Vector store saved to: {vector_store_path.resolve()}")
+                st.success("✓ Fashion knowledge base created and saved!")
+            except Exception as e:
+                logging.error(f"❌ Error saving vector store: {e}")
+                st.error("Error saving vector store.")
 
         except Exception as e:
+            logging.error(f"General error in vector store initialization: {e}")
             st.error(f"❌ Error initializing vector store: {e}")
             self.vector_store = None
 
