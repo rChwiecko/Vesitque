@@ -12,15 +12,16 @@ import os
 from decider import decide_preference
 from event_loop import background_loop
 from email_settings import initialize_email_settings  # Import the function
-from style_advisor import StyleAdvisor  # Import the StyleAdvisor class
+# from style_advisor import StyleAdvisor  # Import the StyleAdvisor class
 from pathlib import Path
 import json
-
+from market_place_manager import Marketplace
+from decide_match import decide_match
 from dotenv import load_dotenv
 # Load environment variables
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
-SAMBANOVA_API_KEY = os.getenv('SAMBANOVA_API_KEY')
+SAMBANOVA_API_KEY = 'ba4070a0-299d-4e64-8952-0886808164b3'
 best = [
 { "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
 ]
@@ -29,28 +30,28 @@ worst = [
     { "type": "sweatshirt", "material": "cotton blend", "color": { "primary": "dark navy blue", "secondary": ["white graphic"] }, "fit_and_style": { "fit": "relaxed", "style": "casual" }, "design_features": { "collar": "hooded", "closures": ["drawstring"], "embellishments": ["graphic print"], "logo": "none" }, "condition": "new", "brand": "unknown", "season": "all-season", "use_case": ["travel", "casual outings"], "size": "unknown" }
 ]
 
-            with col2:
-                with st.spinner("Getting style advice..."):
-                    item_description = selected_item.get('ai_analysis', {})
+    #     with col2:
+    #             with st.spinner("Getting style advice..."):
+    #                 item_description = selected_item.get('ai_analysis', {})
                     
-                    # Use AI analysis directly for more accurate advice
-                    advice = st.session_state.style_advisor.get_style_advice(item_description)
+    #                 # Use AI analysis directly for more accurate advice
+    #                 advice = st.session_state.style_advisor.get_style_advice(item_description)
                     
-                    st.markdown('<div class="advice-container">', unsafe_allow_html=True)
-                    st.markdown('<div class="advice-text">', unsafe_allow_html=True)
-                    st.write(advice["styling_tips"])
-                    st.markdown('</div>', unsafe_allow_html=True)
+    #                 st.markdown('<div class="advice-container">', unsafe_allow_html=True)
+    #                 st.markdown('<div class="advice-text">', unsafe_allow_html=True)
+    #                 st.write(advice["styling_tips"])
+    #                 st.markdown('</div>', unsafe_allow_html=True)
                     
-                    st.markdown('<div class="sources">', unsafe_allow_html=True)
-                    for source in advice["sources"]:
-                        st.caption(f"📚 {source}")
-                    st.markdown('</div>', unsafe_allow_html=True)
+    #                 st.markdown('<div class="sources">', unsafe_allow_html=True)
+    #                 for source in advice["sources"]:
+    #                     st.caption(f"📚 {source}")
+    #                 st.markdown('</div>', unsafe_allow_html=True)
                     
-                    st.markdown('</div>', unsafe_allow_html=True)
+    #                 st.markdown('</div>', unsafe_allow_html=True)
             
-            st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.info("Add some items to your wardrobe to get personalized style advice!")
+    #         st.markdown('</div>', unsafe_allow_html=True)
+    # else:
+    #     st.info("Add some items to your wardrobe to get personalized style advice!")
 def initialize_database():
     """Initialize the database file if it doesn't exist or is empty"""
     database_path = 'clothing_database.json'
@@ -273,44 +274,44 @@ def marketplace_tab(tracker, email_notifier):
         marketplace = Marketplace()
 
 
-        with open('clothing_database.json', 'r') as file:
-            data = json.load(file)
-            contents = data.get('items', [])
-
-        if not contents and by_preference:
-            st.info("Your wardrobe is empty! Add some items to get personalized insights.")
-            return
-
-        # Find items with min and max wear count
-        min_view = float('inf')
-        max_view = -1
-        smallest_des = None
-        largest_des = None
-
-        for item in contents:
-            wear_count = item.get('wear_count', 0)
-            if 'ai_analysis' in item:
-                if wear_count < min_view:
-                    smallest_des = item['ai_analysis']
-                    min_view = wear_count
-                if wear_count > max_view:
-                    largest_des = item['ai_analysis']
-                    max_view = wear_count
-
-        if not smallest_des or not largest_des:
-            st.warning("Not enough analyzed items to generate insights.")
-            return
-
-
-        with st.spinner("Analyzing wardrobe preferences..."):
-            result = decide_preference(largest_des, smallest_des)
-            results_list = json.loads(result)
-            print("Res_list: ",results_list)
-
         # Get all items from the marketplace database
         listed_items = marketplace.get_all_items()
 
         if by_preference:
+            with open('clothing_database.json', 'r') as file:
+                data = json.load(file)
+                contents = data.get('items', [])
+
+            if not contents and by_preference:
+                st.info("Your wardrobe is empty! Add some items to get personalized insights.")
+                return
+
+            # Find items with min and max wear count
+            min_view = float('inf')
+            max_view = -1
+            smallest_des = None
+            largest_des = None
+
+            for item in contents:
+                wear_count = item.get('wear_count', 0)
+                if 'ai_analysis' in item:
+                    if wear_count < min_view:
+                        smallest_des = item['ai_analysis']
+                        min_view = wear_count
+                    if wear_count > max_view:
+                        largest_des = item['ai_analysis']
+                        max_view = wear_count
+
+            if not smallest_des or not largest_des:
+                st.warning("Not enough analyzed items to generate insights.")
+                return
+
+
+            with st.spinner("Analyzing wardrobe preferences..."):
+                result = decide_preference(largest_des, smallest_des)
+                results_list = json.loads(result)
+                print("Res_list: ",results_list)
+
             # Extract liked and disliked traits from the user's wardrobe analysis
             liked_characteristics = results_list[0]
             disliked_characteristics = results_list[1]
@@ -542,8 +543,8 @@ def main():
     feature_extractor = FeatureExtractor()
     tracker = WardrobeTracker(feature_extractor)
     email_notifier = EmailNotifier()
-    if 'style_advisor' not in st.session_state:
-        st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)  # Use SAMBANOVA_API_KEY instead of LAM_API_KEY
+    # if 'style_advisor' not in st.session_state:
+    #     st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)  # Use SAMBANOVA_API_KEY instead of LAM_API_KEY
     # Sidebar controls
     with st.sidebar:
         st.subheader("Settings")
@@ -881,42 +882,42 @@ def main():
     
 
     # Add the Style Advisor tab
-    with tab7:
-        st.subheader("👔 Style Advisor")
+    # with tab7:
+    #     st.subheader("👔 Style Advisor")
         
-        # Get selected item
-        if tracker.database["items"]:
-            selected_item = st.selectbox(
-                "Select an item for styling advice",
-                options=tracker.database["items"],
-                format_func=lambda x: x.get('name', x['type'])
-            )
+    #     # Get selected item
+    #     if tracker.database["items"]:
+    #         selected_item = st.selectbox(
+    #             "Select an item for styling advice",
+    #             options=tracker.database["items"],
+    #             format_func=lambda x: x.get('name', x['type'])
+    #         )
             
-            if selected_item:
-                with st.spinner("Getting style advice..."):
-                    # Get AI analysis if it exists
-                    item_description = selected_item.get('ai_analysis', {})
+    #         if selected_item:
+    #             with st.spinner("Getting style advice..."):
+    #                 # Get AI analysis if it exists
+    #                 item_description = selected_item.get('ai_analysis', {})
                     
-                    # Get style advice
-                    advice = st.session_state.style_advisor.get_style_advice(item_description)
+    #                 # Get style advice
+    #                 advice = st.session_state.style_advisor.get_style_advice(item_description)
                     
-                    # Display advice
-                    st.markdown("### Styling Tips")
-                    st.write(advice["styling_tips"])
+    #                 # Display advice
+    #                 st.markdown("### Styling Tips")
+    #                 st.write(advice["styling_tips"])
                     
-                    # Display sources
-                    with st.expander("Sources"):
-                        for source in advice["sources"]:
-                            st.caption(f"- {source}")
+    #                 # Display sources
+    #                 with st.expander("Sources"):
+    #                     for source in advice["sources"]:
+    #                         st.caption(f"- {source}")
             
-            # Add outfit recommendations section
-            st.markdown("### Complete Outfit Suggestions")
-            if st.button("Get Outfit Recommendations"):
-                with st.spinner("Generating outfit ideas..."):
-                    recommendations = st.session_state.style_advisor.get_outfit_recommendations(
-                        tracker.database["items"]
-                    )
-                    st.write(recommendations["recommendations"])
+    #         # Add outfit recommendations section
+    #         st.markdown("### Complete Outfit Suggestions")
+    #         if st.button("Get Outfit Recommendations"):
+    #             with st.spinner("Generating outfit ideas..."):
+    #                 recommendations = st.session_state.style_advisor.get_outfit_recommendations(
+    #                     tracker.database["items"]
+    #                 )
+    #                 st.write(recommendations["recommendations"])
     
 if __name__ == "__main__":
     main()
