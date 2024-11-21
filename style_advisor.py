@@ -133,14 +133,14 @@ class StyleAdvisor:
                     "occasion": f"When and how to wear {color} {item_type}? Occasion-specific advice."
                 }
 
-            st.write("🔍 Finding relevant style information...")
+            
             
             # Get chunks from each source for each query type
             all_contexts = []
             used_chunks = []
             
             for query_type, query in queries.items():
-                st.write(f"- Finding {query_type} advice...")
+                
                 # Get chunks ensuring representation from each source
                 docs = []
                 for source in self.docs_path.glob('*.pdf'):
