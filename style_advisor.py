@@ -34,35 +34,41 @@ class StyleAdvisor:
         )
 
     def _initialize_vector_store(self) -> None:
-        """Initialize FAISS vector store with fashion guides"""
+        """Initialize FAISS vector store with balanced document representation"""
         try:
             if Path('fashion_vectors.faiss').exists():
                 self.vector_store = FAISS.load_local("fashion_vectors", self.embeddings)
                 st.info("✓ Loaded existing fashion knowledge base")
                 return
 
-            # Load fashion guides
             all_docs = []
             st.write("📚 Loading fashion guides:")
+            
+            # Load documents with explicit source tracking
             for pdf_path in self.docs_path.glob('*.pdf'):
                 try:
                     st.write(f"- Loading {pdf_path.name}...")
                     loader = PyPDFLoader(str(pdf_path))
                     docs = loader.load()
+                    # Explicitly set source in metadata
+                    for doc in docs:
+                        doc.metadata["source"] = pdf_path.name
                     st.write(f"  ✓ Found {len(docs)} pages")
                     all_docs.extend(docs)
                 except Exception as e:
                     st.error(f"❌ Error loading {pdf_path}: {e}")
 
             if not all_docs:
-                st.warning("⚠️ No fashion guides found - using basic style rules only")
+                st.warning("⚠️ No fashion guides found")
                 return
 
-            # Show chunks being created
+            # Split into chunks with source preservation
             st.write("🔄 Processing documents...")
             splitter = RecursiveCharacterTextSplitter(
                 chunk_size=1000,
-                chunk_overlap=200
+                chunk_overlap=200,
+                separators=["\n\n", "\n", ". ", " ", ""],
+                keep_separator=True
             )
             chunks = splitter.split_documents(all_docs)
             st.write(f"✓ Created {len(chunks)} text chunks")
@@ -78,45 +84,98 @@ class StyleAdvisor:
             self.vector_store = None
 
     def get_style_advice(self, item_description: Dict | str) -> Dict[str, str]:
-        """Get style advice for a specific item"""
+        """Get balanced style advice from all sources"""
         try:
-            # Convert string descriptions to dict format
+            # Create focused queries
             if isinstance(item_description, str):
-                query = item_description
+                base_query = item_description
+                queries = {
+                    "general": base_query,
+                    "color": f"Color advice for {base_query}",
+                    "style": f"Style and outfit combinations for {base_query}"
+                }
             else:
-                # Extract relevant details
                 color = item_description.get('color', {}).get('primary', 'Unknown')
                 item_type = item_description.get('type', 'Unknown')
                 style = item_description.get('fit_and_style', {}).get('style', 'Unknown')
-                query = f"How to style a {color} {item_type} in {style} style?"
+                
+                queries = {
+                    "color": f"What colors work well with {color} {item_type}? Color theory and combinations.",
+                    "style": f"How to style a {item_type} in {style} style? Outfit combinations.",
+                    "occasion": f"When and how to wear {color} {item_type}? Occasion-specific advice."
+                }
 
-            st.write("🔍 Query:", query)
-
-            # Get relevant chunks from fashion guides
+            st.write("🔍 Finding relevant style information...")
+            
+            # Get chunks from each source for each query type
+            all_contexts = []
             used_chunks = []
-            if self.vector_store:
-                docs = self.vector_store.similarity_search(query, k=3)
-                context = "\n\n".join(doc.page_content for doc in docs)
-                # Track which parts of the guides were used
+            
+            for query_type, query in queries.items():
+                st.write(f"- Finding {query_type} advice...")
+                # Get chunks ensuring representation from each source
+                docs = []
+                for source in self.docs_path.glob('*.pdf'):
+                    source_name = source.name
+                    # Filter by source and get top chunks
+                    source_docs = self.vector_store.similarity_search(
+                        query,
+                        k=2,  # Get top 2 chunks from each source
+                        filter=lambda x: x["source"] == source_name
+                    )
+                    docs.extend(source_docs)
+                
+                # Add chunks to context
                 for doc in docs:
+                    context = doc.page_content
                     source = doc.metadata.get('source', 'Unknown source')
                     page = doc.metadata.get('page', 'Unknown page')
+                    all_contexts.append(context)
                     used_chunks.append(f"From {source}, Page {page}")
-            else:
-                context = ""
-                st.warning("⚠️ No fashion guides loaded - using basic advice only")
 
+            # Combine contexts
+            combined_context = "\n\n".join(all_contexts)
+
+            # Group sources by document
+            source_summary = {}
+            for chunk in used_chunks:
+                doc = chunk.split("From ")[-1].split(", Page")[0]
+                page = chunk.split("Page ")[-1]
+                if doc in source_summary:
+                    source_summary[doc].add(page)
+                else:
+                    source_summary[doc] = {page}
+
+            formatted_sources = [
+                f"From {doc}, Pages {', '.join(sorted(pages))}"
+                for doc, pages in source_summary.items()
+            ]
+
+            # Enhanced prompt to use all sources
             payload = {
                 "model": "Meta-Llama-3.1-70B-Instruct",
                 "messages": [
                     {
                         "role": "system",
-                        "content": """You are a professional fashion stylist. Provide specific, 
-                        actionable advice using the fashion guide context when available."""
+                        "content": """You are a professional fashion stylist with expertise in both color theory 
+                        and style combinations. Synthesize advice from all provided sources to give comprehensive 
+                        recommendations, making sure to incorporate both general style guidelines and specific 
+                        color advice."""
                     },
                     {
                         "role": "user",
-                        "content": f"Using this fashion guide information:\n\n{context}\n\nProvide styling advice for: {query}\n\nInclude:\n1. Complete outfit combinations\n2. Occasion-specific tips\n3. Color coordination\n4. Accessory suggestions"
+                        "content": f"""Using these fashion guide excerpts:
+
+    {combined_context}
+
+    Provide complete style advice including:
+    1. Color combinations and coordination (be specific about shades and combinations)
+    2. Complete outfit suggestions
+    3. Occasion-specific recommendations
+    4. Accessory pairings
+    5. Additional styling tips
+
+    Be sure to incorporate both color theory and style advice from all sources."""
                     }
                 ],
                 "temperature": 0.7
@@ -133,7 +192,7 @@ class StyleAdvisor:
                 content = response.json()['choices'][0]['message']['content']
                 return {
                     "styling_tips": content,
-                    "sources": used_chunks if used_chunks else ["Basic style rules"]
+                    "sources": formatted_sources
                 }
             else:
                 raise Exception(f"API Error: {response.status_code}")
