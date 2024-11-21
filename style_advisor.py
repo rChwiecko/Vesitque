@@ -112,7 +112,7 @@ class StyleAdvisor:
             self.vector_store = None
 
     def get_style_advice(self, item_description: Dict | str) -> Dict[str, str]:
-        """Get style advice using both style guide and color theory sources"""
+        """Get style advice specifically for the item being viewed"""
         try:
             # Get item details
             if isinstance(item_description, dict):
@@ -126,41 +126,21 @@ class StyleAdvisor:
                 color = "Unknown"
                 style = "Unknown"
 
-            # Separate queries for style guide and color theory
-            style_queries = {
-                "style": f"How to style a {color} {item_type}? Focus on outfit combinations.",
-                "occasion": f"When to wear a {style} {item_type}? Include appropriate settings."
+            # Create focused queries about THIS specific item
+            queries = {
+                "style": f"How to style a {color} {item_type}? Focus on practical outfit combinations.",
+                "color": f"What colors work well with a {color} {item_type}? Provide specific color combinations.",
+                "occasion": f"When to wear a {style} {item_type}? Include appropriate settings and occasions."
             }
             
-            color_queries = {
-                "color_theory": f"What colors complement {color}? Color wheel and color theory recommendations.",
-                "color_combinations": f"Color combinations and patterns that work with {color} in clothing."
-            }
-            
+            # Get contextual fashion advice from guides
             all_contexts = []
             used_chunks = []
             
-            # Get style advice from style guide
-            for query_type, query in style_queries.items():
+            for query_type, query in queries.items():
                 docs = self.vector_store.similarity_search(
                     query,
-                    k=2,  # Get top 2 chunks from each source
-                    filter=lambda x: x["source"] == "Ultimate-Guide-To-Casual-Mens-Style.pdf"
-                )
-                
-                for doc in docs:
-                    context = doc.page_content
-                    source = doc.metadata.get('source', 'Unknown source')
-                    page = doc.metadata.get('page', 'Unknown page')
-                    all_contexts.append(context)
-                    used_chunks.append(f"From {source}, Page {page}")
-            
-            # Get color advice from color guide
-            for query_type, query in color_queries.items():
-                docs = self.vector_store.similarity_search(
-                    query,
-                    k=2,  # Get top 2 chunks from each source
-                    filter=lambda x: x["source"] == "Color_Men.pdf"
+                    k=3,  # Get top 3 most relevant chunks
                 )
                 
                 for doc in docs:
@@ -176,20 +156,19 @@ class StyleAdvisor:
             # Format sources
             formatted_sources = [f"📚 {chunk}" for chunk in used_chunks]
 
-            # Updated prompt to specifically reference both style and color advice
+            # Clear, focused prompt
             payload = {
                 "model": "Meta-Llama-3.1-70B-Instruct",
                 "messages": [
                     {
                         "role": "system",
-                        "content": """You are a fashion advisor combining style recommendations with color theory expertise.
-                        Use both the style guide and color theory information to provide comprehensive advice.
-                        Focus specifically on the item being discussed and incorporate both practical styling tips
-                        and color combination recommendations."""
+                        "content": """You are a fashion advisor providing specific styling advice for the exact item being viewed.
+                        Use the provided fashion guide excerpts to give practical recommendations.
+                        Focus only on the actual item being discussed and avoid making assumptions or generalizations."""
                     },
                     {
                         "role": "user",
-                        "content": f"""Using these fashion and color theory excerpts:
+                        "content": f"""Using these fashion guide excerpts:
 
     {combined_context}
 
@@ -197,28 +176,26 @@ class StyleAdvisor:
 
     Title: Styling Advice for {item_name}
 
-    1. Color Combinations (based on color theory):
-    - Recommended color pairings with this {color} piece
-    - Color wheel combinations that work well
-    - Pattern and texture suggestions
+    1. Color Combinations:
+    - What colors pair well with this {color} {item_type}
+    - Specific pattern and texture combinations
 
-    2. Complete Outfit Ideas:
-    - Specific outfit combinations
+    2. Outfit Suggestions:
+    - Complete outfit ideas using this piece
     - How to dress it up or down
-    - Layering suggestions if applicable
 
-    3. Occasions & Settings:
-    - Best situations to wear this piece
-    - How to style it appropriately
+    3. Occasions:
+    - Best situations to wear this item
+    - How to style it for different settings
 
-    4. Accessories & Finishing Touches:
-    - Complementary accessories
-    - Final styling tips
+    4. Accessories:
+    - What accessories complement this piece
+    - Specific recommendations
 
-    Base all advice on both the style guides and color theory principles."""
+    Base all advice on fashion principles and the actual item characteristics. Be practical and specific."""
                     }
                 ],
-                "temperature": 0.3
+                "temperature": 0.3  # Lower temperature for more focused responses
             }
 
             response = requests.post(
