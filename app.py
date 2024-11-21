@@ -153,8 +153,6 @@ def preferences_tab():
             initialize_database()
             st.success("Database reset successfully! Please add new items.")
             st.rerun()
-
-
 def marketplace_tab(tracker, email_notifier):
     st.subheader("🛍️ Marketplace Listings")
 
