@@ -18,6 +18,7 @@ import json
 from market_place_manager import Marketplace
 from decide_match import decide_match
 from dotenv import load_dotenv
+from SambaFit import *
 # Load environment variables
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
@@ -52,6 +53,61 @@ worst = [
     #         st.markdown('</div>', unsafe_allow_html=True)
     # else:
     #     st.info("Add some items to your wardrobe to get personalized style advice!")
+
+
+
+def fashion_agent(tracker):
+    st.title("🤖 SambaFit")
+    
+    st.markdown("Welcome to SambaFit! Ask me to create an oufit for the day!")
+
+    listed_items = []
+
+    # First get existing listings
+    listed_items.extend(tracker.get_listings())
+
+    model_data = []
+    for item in listed_items:
+        model_data.append({item['id']:item['ai_analysis']})
+
+    # Chat history
+    if "messages" not in st.session_state:
+        st.session_state["messages"] = []
+
+    # Display chat history
+    for message in st.session_state["messages"]:
+        if message["role"] == "user":
+            st.markdown(f"**You:** {message['content']}")
+        else:
+            st.markdown(f"**SambaFit:** {message['content']}")
+
+    # User input box
+    user_input = st.text_input("Type details here (weather, occasion etc):", key="user_input")
+
+    # Process user input
+    if user_input:
+        # Add user's message to chat history
+        st.session_state["messages"].append({"role": "user", "content": user_input})
+
+        # Generate a response (placeholder for now)
+        # Replace with API call to SambaFit AI when integrated
+        response = generate_response(user_input, model_data)
+
+        # Add bot's response to chat history
+        st.session_state["messages"].append({"role": "bot", "content": response})
+
+        # Clear the input box
+        st.session_state["user_input"] = ""
+
+
+def generate_response(user_input, data):
+    model1_res = model1_tokenize_prompt(user_input)
+    overall_res = model2_select_items(model1_res, data)
+    return overall_res
+
+
+
+
 def initialize_database():
     """Initialize the database file if it doesn't exist or is empty"""
     database_path = 'clothing_database.json'
@@ -600,9 +656,9 @@ def main():
             st.success(f"Default reset period updated to {new_reset_period} days!")
 
     # Main content
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Capture", "My Wardrobe", "Edit Wardrobe", 
-    "Notifications", "Preferences", "Marketplace", "Style Advisor"
+    "Notifications", "Preferences", "Marketplace", "Style Advisor", "SambaFit"
         ])
     
     with tab1:
@@ -916,6 +972,9 @@ def main():
     #                     tracker.database["items"]
     #                 )
     #                 st.write(recommendations["recommendations"])
+
+    with tab8:
+        fashion_agent(tracker)
     
 if __name__ == "__main__":
     main()

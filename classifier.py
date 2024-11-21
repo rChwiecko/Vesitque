@@ -24,11 +24,9 @@ client = openai.OpenAI(
 
 # Initialize the Gemini API client
 
-# Streamlit app title
-st.title("Image Analysis with Gemini API")
 
 # File uploader for a single image
-uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+# uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
 
 
 def prompt_llama(message, model="Meta-Llama-3.1-8B-Instruct", stream=False):
@@ -171,22 +169,22 @@ async def classify_outfit(image):
     response_lam = prompt_llama(response_lam_analyze)
     return response_lam
 
-# Submit button
-if st.button("Analyze Image"):
-    if uploaded_file is not None:
-        # Display the uploaded image
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Image", use_column_width=True)
+# # Submit button
+# if st.button("Analyze Image"):
+#     if uploaded_file is not None:
+#         # Display the uploaded image
+#         image = Image.open(uploaded_file)
+#         st.image(image, caption="Uploaded Image", use_column_width=True)
 
-        # Convert image to bytes
-        image_final = image.convert("RGB")
-        print("Llama vis res: ", analyze_image_llama_vision(image_final))
-        # Run the async function to analyze the image
-        try:
-            with st.spinner("Analyzing image..."):
-                res = asyncio.run(classify_outfit(image_final))
-                st.write(res)
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-    else:
-        st.warning("Please upload an image before clicking 'Analyze Image'.")
+#         # Convert image to bytes
+#         image_final = image.convert("RGB")
+#         print("Llama vis res: ", analyze_image_llama_vision(image_final))
+#         # Run the async function to analyze the image
+#         try:
+#             with st.spinner("Analyzing image..."):
+#                 res = asyncio.run(classify_outfit(image_final))
+#                 st.write(res)
+#         except Exception as e:
+#             st.error(f"An error occurred: {e}")
+#     else:
+#         st.warning("Please upload an image before clicking 'Analyze Image'.")
