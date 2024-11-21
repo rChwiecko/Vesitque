@@ -155,6 +155,12 @@ class WardrobeTracker:
                 future = asyncio.run_coroutine_threadsafe(classify_outfit(rgb_image), background_loop)
                 description = future.result()  # This will block until the result is available
                 
+                # Get style recommendations for the item if it exists in session state
+                style_advice = None
+                if 'style_advisor' in st.session_state:
+                    with st.spinner("Getting style recommendations..."):
+                        style_advice = st.session_state.style_advisor.get_style_advice(description)
+                
                 new_item = {
                     "id": len(self.database[collection]),
                     "type": item_type,
@@ -166,7 +172,9 @@ class WardrobeTracker:
                     "features": features.tolist(),
                     "reset_period": 7,
                     "wear_count": 1,
-                    "ai_analysis": description  # Add the AI analysis
+                    "ai_analysis": description,  # Original AI analysis
+                    "style_recommendations": style_advice["styling_tips"] if style_advice else None,  # Add style recommendations
+                    "style_sources": style_advice["sources"] if style_advice else None  # Add sources
                 }
                 
                 self.database[collection].append(new_item)
@@ -377,7 +385,26 @@ class WardrobeTracker:
             if 'reference_images' in item:
                 num_views = len(item['reference_images'])
                 st.caption(f"📸 {num_views} views of this item")
+            # Add style recommendations section here
+            if 'style_recommendations' in item and item['style_recommendations']:
+                with st.expander("👔 Style Suggestions"):
+                    st.markdown(item['style_recommendations'])
+                    if 'style_sources' in item and item['style_sources']:
+                        with st.expander("📚 Sources"):
+                            for source in item['style_sources']:
+                                st.caption(f"- {source}")
             
+            # Button to get style advice if not present
+            elif 'ai_analysis' in item and 'style_advisor' in st.session_state:
+                col3, col4 = st.columns([3, 1])
+                with col4:
+                    if st.button("Get Style Tips", key=f"get_style_{item['id']}"):
+                        with st.spinner("Getting style recommendations..."):
+                            style_advice = st.session_state.style_advisor.get_style_advice(item['ai_analysis'])
+                            item['style_recommendations'] = style_advice["styling_tips"]
+                            item['style_sources'] = style_advice["sources"]
+                            self.save_database()
+                            st.rerun()
             col1, col2 = st.columns([3, 1])
             with col2:
                 if st.button("Add View", key=f"add_view_{item['collection']}_{item['id']}"):

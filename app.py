@@ -12,65 +12,139 @@ import os
 from decider import decide_preference
 from event_loop import background_loop
 from email_settings import initialize_email_settings  # Import the function
+from style_advisor import StyleAdvisor  # Import the StyleAdvisor class
+from pathlib import Path
 import json
-from market_place_manager import Marketplace
-from decide_match import decide_match
 
-def initialize_database_market_place():
-    """Initialize the database file for the marketplace if it doesn't exist or is invalid."""
-    database_path = 'market_place_database.json'
-    initial_data = {
-        "items": []
-    }
+from dotenv import load_dotenv
+# Load environment variables
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
+SAMBANOVA_API_KEY = os.getenv('SAMBANOVA_API_KEY')
+best = [
+{ "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
+]
+
+worst = [
+    { "type": "sweatshirt", "material": "cotton blend", "color": { "primary": "dark navy blue", "secondary": ["white graphic"] }, "fit_and_style": { "fit": "relaxed", "style": "casual" }, "design_features": { "collar": "hooded", "closures": ["drawstring"], "embellishments": ["graphic print"], "logo": "none" }, "condition": "new", "brand": "unknown", "season": "all-season", "use_case": ["travel", "casual outings"], "size": "unknown" }
+]
+def style_advisor_tab(tracker):
+    # Add custom styling with proper padding and dark theme
+    st.markdown("""
+        <style>
+            /* Container styling */
+            .main-container {
+                background-color: #1E1E1E;
+                padding: 20px;
+                border-radius: 12px;
+                margin: 10px 0;
+            }
+            
+            /* Image and content grid */
+            .grid-container {
+                display: grid;
+                grid-template-columns: 1fr 2fr;
+                gap: 20px;
+                margin: 20px 0;
+            }
+            
+            /* Image card */
+            .image-card {
+                background-color: #2D2D2D;
+                border-radius: 12px;
+                padding: 16px;
+                text-align: center;
+            }
+            
+            /* Advice container */
+            .advice-container {
+                background-color: #2D2D2D;
+                border-radius: 12px;
+                padding: 24px;
+                margin-top: 10px;
+            }
+            
+            /* Typography */
+            .item-title {
+                color: #E0E0E0;
+                font-size: 1.2rem;
+                margin: 12px 0;
+                text-align: center;
+            }
+            
+            .advice-text {
+                color: #CCCCCC;
+                line-height: 1.6;
+                font-size: 1rem;
+            }
+            
+            /* Sources section */
+            .sources {
+                margin-top: 20px;
+                padding-top: 16px;
+                border-top: 1px solid #3D3D3D;
+                color: #888888;
+                font-size: 0.9rem;
+            }
+            
+            /* Fix padding and margins */
+            .stSelectbox {
+                margin-bottom: 20px;
+            }
+            
+            .block-container {
+                padding-top: 2rem;
+                padding-bottom: 2rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
     
-    try:
-        if not os.path.exists(database_path):
-            # Create a new database file with the initial structure
-            with open(database_path, 'w') as file:
-                json.dump(initial_data, file)
-        else:
-            # Try to load and validate the existing database file
-            try:
-                with open(database_path, 'r') as file:
-                    data = json.load(file)
-                    # Validate the structure of the existing file
-                    if not isinstance(data, dict) or "items" not in data:
-                        raise ValueError("Invalid database structure")
-            except (json.JSONDecodeError, ValueError):
-                # If the file is corrupt or invalid, reinitialize it
-                with open(database_path, 'w') as file:
-                    json.dump(initial_data, file)
-    except Exception as e:
-        st.error(f"Error initializing database: {str(e)}")
-        # Ensure a valid database exists even if an error occurs
-        with open(database_path, 'w') as file:
-            json.dump(initial_data, file)
+    st.subheader("👔 Style Advisor")
+    
+    if tracker.database["items"]:
+        selected_item = st.selectbox(
+            "Select an item for styling advice",
+            options=tracker.database["items"],
+            format_func=lambda x: x.get('name', x['type'])
+        )
+        
+        if selected_item:
+            st.markdown('<div class="main-container">', unsafe_allow_html=True)
+            
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                st.markdown('<div class="image-card">', unsafe_allow_html=True)
+                if 'image' in selected_item:
+                    image = tracker.base64_to_image(selected_item['image'])
+                    if image:
+                        st.image(image, use_column_width=True)
+                st.markdown(f'<div class="item-title">{selected_item.get("name", selected_item["type"])}</div>', 
+                          unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
-
-
-def load_database_market_place():
-    """Load the marketplace database."""
-    database_path = 'market_place_database.json'
-    default_db = {
-        "items": []  # Only the items list is required in this structure
-    }
-
-    try:
-        if os.path.exists(database_path):
-            with open(database_path, 'r') as f:
-                db = json.load(f)
-                # Ensure the "items" key exists in the database
-                if "items" not in db:
-                    db["items"] = []
-                return db
-        else:
-            return default_db
-    except Exception as e:
-        st.error(f"Error loading database: {str(e)}")
-        return default_db
-
-
-
+            with col2:
+                with st.spinner("Getting style advice..."):
+                    item_description = selected_item.get('ai_analysis', {})
+                    
+                    # Use AI analysis directly for more accurate advice
+                    advice = st.session_state.style_advisor.get_style_advice(item_description)
+                    
+                    st.markdown('<div class="advice-container">', unsafe_allow_html=True)
+                    st.markdown('<div class="advice-text">', unsafe_allow_html=True)
+                    st.write(advice["styling_tips"])
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    st.markdown('<div class="sources">', unsafe_allow_html=True)
+                    for source in advice["sources"]:
+                        st.caption(f"📚 {source}")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.info("Add some items to your wardrobe to get personalized style advice!")
 def initialize_database():
     """Initialize the database file if it doesn't exist or is empty"""
     database_path = 'clothing_database.json'
@@ -562,7 +636,8 @@ def main():
     feature_extractor = FeatureExtractor()
     tracker = WardrobeTracker(feature_extractor)
     email_notifier = EmailNotifier()
-
+    if 'style_advisor' not in st.session_state:
+        st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)  # Use SAMBANOVA_API_KEY instead of LAM_API_KEY
     # Sidebar controls
     with st.sidebar:
         st.subheader("Settings")
@@ -620,7 +695,10 @@ def main():
             st.success(f"Default reset period updated to {new_reset_period} days!")
 
     # Main content
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Capture", "My Wardrobe", "Edit Wardrobe", "Notifications", "Preferences", "Marketplace"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "Capture", "My Wardrobe", "Edit Wardrobe", 
+    "Notifications", "Preferences", "Marketplace", "Style Advisor"
+        ])
     
     with tab1:
         
@@ -894,6 +972,11 @@ def main():
     with tab6:
         marketplace_tab(tracker, email_notifier)
 
-   
+    
+
+    # Add the Style Advisor tab
+    with tab7:
+        style_advisor_tab(tracker)
+    
 if __name__ == "__main__":
     main()
