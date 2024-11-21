@@ -112,48 +112,37 @@ class StyleAdvisor:
             self.vector_store = None
 
     def get_style_advice(self, item_description: Dict | str) -> Dict[str, str]:
-        """Get balanced style advice from all sources"""
+        """Get style advice specifically for the item being viewed"""
         try:
-            # Create focused queries
-            if isinstance(item_description, str):
-                base_query = item_description
-                queries = {
-                    "general": base_query,
-                    "color": f"Color advice for {base_query}",
-                    "style": f"Style and outfit combinations for {base_query}"
-                }
-            else:
-                color = item_description.get('color', {}).get('primary', 'Unknown')
+            # Get item details
+            if isinstance(item_description, dict):
                 item_type = item_description.get('type', 'Unknown')
+                item_name = item_description.get('name', item_type)
+                color = item_description.get('color', {}).get('primary', 'Unknown')
                 style = item_description.get('fit_and_style', {}).get('style', 'Unknown')
-                
-                queries = {
-                    "color": f"What colors work well with {color} {item_type}? Color theory and combinations.",
-                    "style": f"How to style a {item_type} in {style} style? Outfit combinations.",
-                    "occasion": f"When and how to wear {color} {item_type}? Occasion-specific advice."
-                }
+            else:
+                item_name = item_description
+                item_type = item_description
+                color = "Unknown"
+                style = "Unknown"
 
+            # Create focused queries about THIS specific item
+            queries = {
+                "style": f"How to style a {color} {item_type}? Focus on practical outfit combinations.",
+                "color": f"What colors work well with a {color} {item_type}? Provide specific color combinations.",
+                "occasion": f"When to wear a {style} {item_type}? Include appropriate settings and occasions."
+            }
             
-            
-            # Get chunks from each source for each query type
+            # Get contextual fashion advice from guides
             all_contexts = []
             used_chunks = []
             
             for query_type, query in queries.items():
+                docs = self.vector_store.similarity_search(
+                    query,
+                    k=3,  # Get top 3 most relevant chunks
+                )
                 
-                # Get chunks ensuring representation from each source
-                docs = []
-                for source in self.docs_path.glob('*.pdf'):
-                    source_name = source.name
-                    # Filter by source and get top chunks
-                    source_docs = self.vector_store.similarity_search(
-                        query,
-                        k=2,  # Get top 2 chunks from each source
-                        filter=lambda x: x["source"] == source_name
-                    )
-                    docs.extend(source_docs)
-                
-                # Add chunks to context
                 for doc in docs:
                     context = doc.page_content
                     source = doc.metadata.get('source', 'Unknown source')
@@ -164,31 +153,18 @@ class StyleAdvisor:
             # Combine contexts
             combined_context = "\n\n".join(all_contexts)
 
-            # Group sources by document
-            source_summary = {}
-            for chunk in used_chunks:
-                doc = chunk.split("From ")[-1].split(", Page")[0]
-                page = chunk.split("Page ")[-1]
-                if doc in source_summary:
-                    source_summary[doc].add(page)
-                else:
-                    source_summary[doc] = {page}
+            # Format sources
+            formatted_sources = [f"📚 {chunk}" for chunk in used_chunks]
 
-            formatted_sources = [
-                f"From {doc}, Pages {', '.join(sorted(pages))}"
-                for doc, pages in source_summary.items()
-            ]
-
-            # Enhanced prompt to use all sources
+            # Clear, focused prompt
             payload = {
                 "model": "Meta-Llama-3.1-70B-Instruct",
                 "messages": [
                     {
                         "role": "system",
-                        "content": """You are a professional fashion stylist with expertise in both color theory 
-                        and style combinations. Synthesize advice from all provided sources to give comprehensive 
-                        recommendations, making sure to incorporate both general style guidelines and specific 
-                        color advice."""
+                        "content": """You are a fashion advisor providing specific styling advice for the exact item being viewed.
+                        Use the provided fashion guide excerpts to give practical recommendations.
+                        Focus only on the actual item being discussed and avoid making assumptions or generalizations."""
                     },
                     {
                         "role": "user",
@@ -196,17 +172,30 @@ class StyleAdvisor:
 
     {combined_context}
 
-    Provide complete style advice including:
-    1. Color combinations and coordination (be specific about shades and combinations)
-    2. Complete outfit suggestions
-    3. Occasion-specific recommendations
-    4. Accessory pairings
-    5. Additional styling tips
+    Provide styling advice specifically for this {item_name}:
 
-    Be sure to incorporate both color theory and style advice from all sources."""
+    Title: Styling Advice for {item_name}
+
+    1. Color Combinations:
+    - What colors pair well with this {color} {item_type}
+    - Specific pattern and texture combinations
+
+    2. Outfit Suggestions:
+    - Complete outfit ideas using this piece
+    - How to dress it up or down
+
+    3. Occasions:
+    - Best situations to wear this item
+    - How to style it for different settings
+
+    4. Accessories:
+    - What accessories complement this piece
+    - Specific recommendations
+
+    Base all advice on fashion principles and the actual item characteristics. Be practical and specific."""
                     }
                 ],
-                "temperature": 0.7
+                "temperature": 0.3  # Lower temperature for more focused responses
             }
 
             response = requests.post(

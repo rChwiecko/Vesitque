@@ -28,7 +28,123 @@ best = [
 worst = [
     { "type": "sweatshirt", "material": "cotton blend", "color": { "primary": "dark navy blue", "secondary": ["white graphic"] }, "fit_and_style": { "fit": "relaxed", "style": "casual" }, "design_features": { "collar": "hooded", "closures": ["drawstring"], "embellishments": ["graphic print"], "logo": "none" }, "condition": "new", "brand": "unknown", "season": "all-season", "use_case": ["travel", "casual outings"], "size": "unknown" }
 ]
+def style_advisor_tab(tracker):
+    # Add custom styling with proper padding and dark theme
+    st.markdown("""
+        <style>
+            /* Container styling */
+            .main-container {
+                background-color: #1E1E1E;
+                padding: 20px;
+                border-radius: 12px;
+                margin: 10px 0;
+            }
+            
+            /* Image and content grid */
+            .grid-container {
+                display: grid;
+                grid-template-columns: 1fr 2fr;
+                gap: 20px;
+                margin: 20px 0;
+            }
+            
+            /* Image card */
+            .image-card {
+                background-color: #2D2D2D;
+                border-radius: 12px;
+                padding: 16px;
+                text-align: center;
+            }
+            
+            /* Advice container */
+            .advice-container {
+                background-color: #2D2D2D;
+                border-radius: 12px;
+                padding: 24px;
+                margin-top: 10px;
+            }
+            
+            /* Typography */
+            .item-title {
+                color: #E0E0E0;
+                font-size: 1.2rem;
+                margin: 12px 0;
+                text-align: center;
+            }
+            
+            .advice-text {
+                color: #CCCCCC;
+                line-height: 1.6;
+                font-size: 1rem;
+            }
+            
+            /* Sources section */
+            .sources {
+                margin-top: 20px;
+                padding-top: 16px;
+                border-top: 1px solid #3D3D3D;
+                color: #888888;
+                font-size: 0.9rem;
+            }
+            
+            /* Fix padding and margins */
+            .stSelectbox {
+                margin-bottom: 20px;
+            }
+            
+            .block-container {
+                padding-top: 2rem;
+                padding-bottom: 2rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.subheader("👔 Style Advisor")
+    
+    if tracker.database["items"]:
+        selected_item = st.selectbox(
+            "Select an item for styling advice",
+            options=tracker.database["items"],
+            format_func=lambda x: x.get('name', x['type'])
+        )
+        
+        if selected_item:
+            st.markdown('<div class="main-container">', unsafe_allow_html=True)
+            
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                st.markdown('<div class="image-card">', unsafe_allow_html=True)
+                if 'image' in selected_item:
+                    image = tracker.base64_to_image(selected_item['image'])
+                    if image:
+                        st.image(image, use_column_width=True)
+                st.markdown(f'<div class="item-title">{selected_item.get("name", selected_item["type"])}</div>', 
+                          unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
+            with col2:
+                with st.spinner("Getting style advice..."):
+                    item_description = selected_item.get('ai_analysis', {})
+                    
+                    # Use AI analysis directly for more accurate advice
+                    advice = st.session_state.style_advisor.get_style_advice(item_description)
+                    
+                    st.markdown('<div class="advice-container">', unsafe_allow_html=True)
+                    st.markdown('<div class="advice-text">', unsafe_allow_html=True)
+                    st.write(advice["styling_tips"])
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    st.markdown('<div class="sources">', unsafe_allow_html=True)
+                    for source in advice["sources"]:
+                        st.caption(f"📚 {source}")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.info("Add some items to your wardrobe to get personalized style advice!")
 def initialize_database():
     """Initialize the database file if it doesn't exist or is empty"""
     database_path = 'clothing_database.json'
@@ -655,41 +771,7 @@ def main():
 
     # Add the Style Advisor tab
     with tab7:
-        st.subheader("👔 Style Advisor")
-        
-        # Get selected item
-        if tracker.database["items"]:
-            selected_item = st.selectbox(
-                "Select an item for styling advice",
-                options=tracker.database["items"],
-                format_func=lambda x: x.get('name', x['type'])
-            )
-            
-            if selected_item:
-                with st.spinner("Getting style advice..."):
-                    # Get AI analysis if it exists
-                    item_description = selected_item.get('ai_analysis', {})
-                    
-                    # Get style advice
-                    advice = st.session_state.style_advisor.get_style_advice(item_description)
-                    
-                    # Display advice
-                    st.markdown("### Styling Tips")
-                    st.write(advice["styling_tips"])
-                    
-                    # Display sources
-                    with st.expander("Sources"):
-                        for source in advice["sources"]:
-                            st.caption(f"- {source}")
-            
-            # Add outfit recommendations section
-            st.markdown("### Complete Outfit Suggestions")
-            if st.button("Get Outfit Recommendations"):
-                with st.spinner("Generating outfit ideas..."):
-                    recommendations = st.session_state.style_advisor.get_outfit_recommendations(
-                        tracker.database["items"]
-                    )
-                    st.write(recommendations["recommendations"])
+        style_advisor_tab(tracker)
     
 if __name__ == "__main__":
     main()
