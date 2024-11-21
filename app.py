@@ -47,126 +47,126 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-def style_advisor_tab(tracker):
-    # Add custom styling with proper padding and dark theme
-    st.markdown("""
-        <style>
-            /* Container styling */
-            .main-container {
-                background-color: #1E1E1E;
-                padding: 20px;
-                border-radius: 12px;
-                margin: 10px 0;
-            }
+# def style_advisor_tab(tracker):
+#     # Add custom styling with proper padding and dark theme
+#     st.markdown("""
+#         <style>
+#             /* Container styling */
+#             .main-container {
+#                 background-color: #1E1E1E;
+#                 padding: 20px;
+#                 border-radius: 12px;
+#                 margin: 10px 0;
+#             }
             
-            /* Image and content grid */
-            .grid-container {
-                display: grid;
-                grid-template-columns: 1fr 2fr;
-                gap: 20px;
-                margin: 20px 0;
-            }
+#             /* Image and content grid */
+#             .grid-container {
+#                 display: grid;
+#                 grid-template-columns: 1fr 2fr;
+#                 gap: 20px;
+#                 margin: 20px 0;
+#             }
             
-            /* Image card */
-            .image-card {
-                background-color: #2D2D2D;
-                border-radius: 12px;
-                padding: 16px;
-                text-align: center;
-            }
+#             /* Image card */
+#             .image-card {
+#                 background-color: #2D2D2D;
+#                 border-radius: 12px;
+#                 padding: 16px;
+#                 text-align: center;
+#             }
             
-            /* Advice container */
-            .advice-container {
-                background-color: #2D2D2D;
-                border-radius: 12px;
-                padding: 24px;
-                margin-top: 10px;
-            }
+#             /* Advice container */
+#             .advice-container {
+#                 background-color: #2D2D2D;
+#                 border-radius: 12px;
+#                 padding: 24px;
+#                 margin-top: 10px;
+#             }
             
-            /* Typography */
-            .item-title {
-                color: #E0E0E0;
-                font-size: 1.2rem;
-                margin: 12px 0;
-                text-align: center;
-            }
+#             /* Typography */
+#             .item-title {
+#                 color: #E0E0E0;
+#                 font-size: 1.2rem;
+#                 margin: 12px 0;
+#                 text-align: center;
+#             }
             
-            .advice-text {
-                color: #CCCCCC;
-                line-height: 1.6;
-                font-size: 1rem;
-            }
+#             .advice-text {
+#                 color: #CCCCCC;
+#                 line-height: 1.6;
+#                 font-size: 1rem;
+#             }
             
-            /* Sources section */
-            .sources {
-                margin-top: 20px;
-                padding-top: 16px;
-                border-top: 1px solid #3D3D3D;
-                color: #888888;
-                font-size: 0.9rem;
-            }
+#             /* Sources section */
+#             .sources {
+#                 margin-top: 20px;
+#                 padding-top: 16px;
+#                 border-top: 1px solid #3D3D3D;
+#                 color: #888888;
+#                 font-size: 0.9rem;
+#             }
             
-            /* Fix padding and margins */
-            .stSelectbox {
-                margin-bottom: 20px;
-            }
+#             /* Fix padding and margins */
+#             .stSelectbox {
+#                 margin-bottom: 20px;
+#             }
             
-            .block-container {
-                padding-top: 2rem;
-                padding-bottom: 2rem;
-            }
-        </style>
-    """, unsafe_allow_html=True)
+#             .block-container {
+#                 padding-top: 2rem;
+#                 padding-bottom: 2rem;
+#             }
+#         </style>
+#     """, unsafe_allow_html=True)
     
-    st.subheader("👔 Style Advisor")
+#     st.subheader("👔 Style Advisor")
     
-    if tracker.database["items"]:
-        selected_item = st.selectbox(
-            "Select an item for styling advice",
-            options=tracker.database["items"],
-            format_func=lambda x: x.get('name', x['type'])
-        )
+#     if tracker.database["items"]:
+#         selected_item = st.selectbox(
+#             "Select an item for styling advice",
+#             options=tracker.database["items"],
+#             format_func=lambda x: x.get('name', x['type'])
+#         )
         
-        if selected_item:
-            try:
-                # Debug output
-                if st.session_state.get('debug_mode', False):
-                    st.write("Selected item:", selected_item)
+#         if selected_item:
+#             try:
+#                 # Debug output
+#                 if st.session_state.get('debug_mode', False):
+#                     st.write("Selected item:", selected_item)
                 
-                # First try to get the AI analysis
-                ai_analysis = selected_item.get('ai_analysis')
-                if not ai_analysis:
-                    st.warning("This item doesn't have AI analysis data.")
-                    return
+#                 # First try to get the AI analysis
+#                 ai_analysis = selected_item.get('ai_analysis')
+#                 if not ai_analysis:
+#                     st.warning("This item doesn't have AI analysis data.")
+#                     return
 
-                # Parse the AI analysis consistently
-                try:
-                    # Try to parse as a JSON string first
-                    if isinstance(ai_analysis, str):
-                        if '```json' in ai_analysis:
-                            # Extract JSON between markdown code blocks
-                            json_content = ai_analysis.split('```json\n')[1].split('\n```')[0]
-                        else:
-                            # Use the raw string if no markdown
-                            json_content = ai_analysis
-                        ai_data = json.loads(json_content)
-                    else:
-                        # If it's already a dict, use it directly
-                        ai_data = ai_analysis
+#                 # Parse the AI analysis consistently
+#                 try:
+#                     # Try to parse as a JSON string first
+#                     if isinstance(ai_analysis, str):
+#                         if '```json' in ai_analysis:
+#                             # Extract JSON between markdown code blocks
+#                             json_content = ai_analysis.split('```json\n')[1].split('\n```')[0]
+#                         else:
+#                             # Use the raw string if no markdown
+#                             json_content = ai_analysis
+#                         ai_data = json.loads(json_content)
+#                     else:
+#                         # If it's already a dict, use it directly
+#                         ai_data = ai_analysis
 
-                    # Combine with item metadata
-                    item_description = {
-                        'name': selected_item.get('name', 'Unknown'),
-                        'type': selected_item.get('type', ai_data.get('type', 'Unknown')),
-                        'brand': selected_item.get('brand', ai_data.get('brand', 'Unknown')),
-                        'color': ai_data.get('color', {}),
-                        'fit_and_style': ai_data.get('fit_and_style', {}),
-                        'material': ai_data.get('material', 'Unknown'),
-                        'design_features': ai_data.get('design_features', {}),
-                        'condition': ai_data.get('condition', 'Unknown'),
-                        'season': ai_data.get('season', 'Unknown'),
-                        'use_case': ai_data.get('use_case', [])
-                    }
+#                     # Combine with item metadata
+#                     item_description = {
+#                         'name': selected_item.get('name', 'Unknown'),
+#                         'type': selected_item.get('type', ai_data.get('type', 'Unknown')),
+#                         'brand': selected_item.get('brand', ai_data.get('brand', 'Unknown')),
+#                         'color': ai_data.get('color', {}),
+#                         'fit_and_style': ai_data.get('fit_and_style', {}),
+#                         'material': ai_data.get('material', 'Unknown'),
+#                         'design_features': ai_data.get('design_features', {}),
+#                         'condition': ai_data.get('condition', 'Unknown'),
+#                         'season': ai_data.get('season', 'Unknown'),
+#                         'use_case': ai_data.get('use_case', [])
+#                     }
 
     #                 st.markdown('</div>', unsafe_allow_html=True)
             
@@ -179,16 +179,12 @@ def style_advisor_tab(tracker):
 def fashion_agent(tracker):
     st.title("🤖 SambaFit")
     
-    st.markdown("Welcome to SambaFit! Ask me to create an oufit for the day!")
+    st.markdown("Welcome to SambaFit! Ask me to create an outfit for the day!")
 
-    listed_items = []
-
-    # First get existing listings
-    listed_items.extend(tracker.get_listings())
 
     model_data = []
-    for item in listed_items:
-        model_data.append({item['id']:item['ai_analysis']})
+    for item in tracker.database['items']:
+        model_data.append({item['id']: item['ai_analysis']})
 
     # Chat history
     if "messages" not in st.session_state:
@@ -201,28 +197,39 @@ def fashion_agent(tracker):
         else:
             st.markdown(f"**SambaFit:** {message['content']}")
 
-    # User input box
-    user_input = st.text_input("Type details here (weather, occasion etc):", key="user_input")
+    # Callback function to process input
+    def handle_input():
+        # Retrieve user input
+        user_input = st.session_state["user_input"]
 
-    # Process user input
-    if user_input:
-        # Add user's message to chat history
-        st.session_state["messages"].append({"role": "user", "content": user_input})
+        if user_input:
+            # Add user's message to chat history
+            st.session_state["messages"].append({"role": "user", "content": user_input})
 
-        # Generate a response (placeholder for now)
-        # Replace with API call to SambaFit AI when integrated
-        response = generate_response(user_input, model_data)
+            # Generate a response (placeholder for now)
+            # Replace with API call to SambaFit AI when integrated
+            response = generate_response(user_input, model_data)
 
-        # Add bot's response to chat history
-        st.session_state["messages"].append({"role": "bot", "content": response})
+            # Add bot's response to chat history
+            st.session_state["messages"].append({"role": "bot", "content": response})
 
-        # Clear the input box
-        st.session_state["user_input"] = ""
+            # Clear the input box
+            st.session_state["user_input"] = ""
+
+    # User input box with on_change callback
+    st.text_input(
+        "Type details here (weather, occasion etc):",
+        key="user_input",
+        on_change=handle_input,
+    )
 
 
 def generate_response(user_input, data):
+    print("data: ",data)
     model1_res = model1_tokenize_prompt(user_input)
+    print("tokens: ", model1_res)
     overall_res = model2_select_items(model1_res, data)
+    print("overall: ",overall_res)
     return overall_res
 
 
@@ -717,8 +724,8 @@ def main():
     feature_extractor = FeatureExtractor()
     tracker = WardrobeTracker(feature_extractor)
     email_notifier = EmailNotifier()
-    if 'style_advisor' not in st.session_state:
-        st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)
+    # if 'style_advisor' not in st.session_state:
+    #     st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)
     # Sidebar controls
     with st.sidebar:
         st.subheader("Settings")
@@ -1055,8 +1062,8 @@ def main():
 
      
 
-    with tab7:
-        style_advisor_tab(tracker)
+    # with tab7:
+    #     style_advisor_tab(tracker)
         
 
     #     # Get selected item
