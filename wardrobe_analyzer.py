@@ -1,7 +1,7 @@
 import asyncio
 from PIL import Image
 from classifier import classify_outfit
-
+import io
 class WardrobeDescriber:
     def __init__(self, wardrobe_tracker):
         self.wardrobe_tracker = wardrobe_tracker
@@ -44,9 +44,6 @@ class WardrobeDescriber:
             
     async def analyze_item(self, image):
         """Get AI analysis for a single image"""
-        # Ensure image is in RGB mode
-        image = image.convert("RGB")
-        
         # Get the classification
         description = await asyncio.create_task(classify_outfit(image))
         return description
