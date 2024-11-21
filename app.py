@@ -1,24 +1,33 @@
+# First import standard library modules
+import logging
+import sys
+import os
+import time
+import threading
+import asyncio
+from datetime import datetime, timedelta
+from pathlib import Path
+
+# Then import third-party modules
 import streamlit as st
 from PIL import Image
 import numpy as np
-from datetime import datetime, timedelta
+from dotenv import load_dotenv
+import json
+
+# Finally import your local modules
 from feature_extractor import FeatureExtractor
 from wardrobe_tracker import WardrobeTracker
 from wardrobe_notifier import EmailNotifier
-import time  
-import asyncio  # Add this
-import threading
-import os
 from decider import decide_preference
 from event_loop import background_loop
-from email_settings import initialize_email_settings  # Import the function
-# from style_advisor import StyleAdvisor  # Import the StyleAdvisor class
-from pathlib import Path
-import json
+from email_settings import initialize_email_settings
 from market_place_manager import Marketplace
 from decide_match import decide_match
+
 from dotenv import load_dotenv
 from SambaFit import *
+
 # Load environment variables
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
@@ -30,24 +39,135 @@ best = [
 worst = [
     { "type": "sweatshirt", "material": "cotton blend", "color": { "primary": "dark navy blue", "secondary": ["white graphic"] }, "fit_and_style": { "fit": "relaxed", "style": "casual" }, "design_features": { "collar": "hooded", "closures": ["drawstring"], "embellishments": ["graphic print"], "logo": "none" }, "condition": "new", "brand": "unknown", "season": "all-season", "use_case": ["travel", "casual outings"], "size": "unknown" }
 ]
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+def style_advisor_tab(tracker):
+    # Add custom styling with proper padding and dark theme
+    st.markdown("""
+        <style>
+            /* Container styling */
+            .main-container {
+                background-color: #1E1E1E;
+                padding: 20px;
+                border-radius: 12px;
+                margin: 10px 0;
+            }
+            
+            /* Image and content grid */
+            .grid-container {
+                display: grid;
+                grid-template-columns: 1fr 2fr;
+                gap: 20px;
+                margin: 20px 0;
+            }
+            
+            /* Image card */
+            .image-card {
+                background-color: #2D2D2D;
+                border-radius: 12px;
+                padding: 16px;
+                text-align: center;
+            }
+            
+            /* Advice container */
+            .advice-container {
+                background-color: #2D2D2D;
+                border-radius: 12px;
+                padding: 24px;
+                margin-top: 10px;
+            }
+            
+            /* Typography */
+            .item-title {
+                color: #E0E0E0;
+                font-size: 1.2rem;
+                margin: 12px 0;
+                text-align: center;
+            }
+            
+            .advice-text {
+                color: #CCCCCC;
+                line-height: 1.6;
+                font-size: 1rem;
+            }
+            
+            /* Sources section */
+            .sources {
+                margin-top: 20px;
+                padding-top: 16px;
+                border-top: 1px solid #3D3D3D;
+                color: #888888;
+                font-size: 0.9rem;
+            }
+            
+            /* Fix padding and margins */
+            .stSelectbox {
+                margin-bottom: 20px;
+            }
+            
+            .block-container {
+                padding-top: 2rem;
+                padding-bottom: 2rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.subheader("👔 Style Advisor")
+    
+    if tracker.database["items"]:
+        selected_item = st.selectbox(
+            "Select an item for styling advice",
+            options=tracker.database["items"],
+            format_func=lambda x: x.get('name', x['type'])
+        )
+        
+        if selected_item:
+            try:
+                # Debug output
+                if st.session_state.get('debug_mode', False):
+                    st.write("Selected item:", selected_item)
+                
+                # First try to get the AI analysis
+                ai_analysis = selected_item.get('ai_analysis')
+                if not ai_analysis:
+                    st.warning("This item doesn't have AI analysis data.")
+                    return
 
-    #     with col2:
-    #             with st.spinner("Getting style advice..."):
-    #                 item_description = selected_item.get('ai_analysis', {})
-                    
-    #                 # Use AI analysis directly for more accurate advice
-    #                 advice = st.session_state.style_advisor.get_style_advice(item_description)
-                    
-    #                 st.markdown('<div class="advice-container">', unsafe_allow_html=True)
-    #                 st.markdown('<div class="advice-text">', unsafe_allow_html=True)
-    #                 st.write(advice["styling_tips"])
-    #                 st.markdown('</div>', unsafe_allow_html=True)
-                    
-    #                 st.markdown('<div class="sources">', unsafe_allow_html=True)
-    #                 for source in advice["sources"]:
-    #                     st.caption(f"📚 {source}")
-    #                 st.markdown('</div>', unsafe_allow_html=True)
-                    
+                # Parse the AI analysis consistently
+                try:
+                    # Try to parse as a JSON string first
+                    if isinstance(ai_analysis, str):
+                        if '```json' in ai_analysis:
+                            # Extract JSON between markdown code blocks
+                            json_content = ai_analysis.split('```json\n')[1].split('\n```')[0]
+                        else:
+                            # Use the raw string if no markdown
+                            json_content = ai_analysis
+                        ai_data = json.loads(json_content)
+                    else:
+                        # If it's already a dict, use it directly
+                        ai_data = ai_analysis
+
+                    # Combine with item metadata
+                    item_description = {
+                        'name': selected_item.get('name', 'Unknown'),
+                        'type': selected_item.get('type', ai_data.get('type', 'Unknown')),
+                        'brand': selected_item.get('brand', ai_data.get('brand', 'Unknown')),
+                        'color': ai_data.get('color', {}),
+                        'fit_and_style': ai_data.get('fit_and_style', {}),
+                        'material': ai_data.get('material', 'Unknown'),
+                        'design_features': ai_data.get('design_features', {}),
+                        'condition': ai_data.get('condition', 'Unknown'),
+                        'season': ai_data.get('season', 'Unknown'),
+                        'use_case': ai_data.get('use_case', [])
+                    }
+
     #                 st.markdown('</div>', unsafe_allow_html=True)
             
     #         st.markdown('</div>', unsafe_allow_html=True)
@@ -597,8 +717,8 @@ def main():
     feature_extractor = FeatureExtractor()
     tracker = WardrobeTracker(feature_extractor)
     email_notifier = EmailNotifier()
-    # if 'style_advisor' not in st.session_state:
-    #     st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)  # Use SAMBANOVA_API_KEY instead of LAM_API_KEY
+    if 'style_advisor' not in st.session_state:
+        st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)
     # Sidebar controls
     with st.sidebar:
         st.subheader("Settings")
@@ -933,12 +1053,12 @@ def main():
     with tab6:
         marketplace_tab(tracker, email_notifier)
 
-    
+     
 
-    # Add the Style Advisor tab
-    # with tab7:
-    #     st.subheader("👔 Style Advisor")
+    with tab7:
+        style_advisor_tab(tracker)
         
+
     #     # Get selected item
     #     if tracker.database["items"]:
     #         selected_item = st.selectbox(
@@ -976,5 +1096,6 @@ def main():
     with tab8:
         fashion_agent(tracker)
     
+
 if __name__ == "__main__":
     main()
