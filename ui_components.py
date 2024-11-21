@@ -151,8 +151,6 @@ class WardrobeUI:
             """
             st.markdown(hanger_svg, unsafe_allow_html=True)
             
-            # Render the wardrobe card below the hanger bar
-            
             # Image
             if 'image' in item:
                 try:
@@ -195,10 +193,10 @@ class WardrobeUI:
                     unsafe_allow_html=True
                 )
             
-            if st.button("📷 Add View", key=f"add_view_{item['collection']}_{item['id']}"):
+            # Generate a unique key for the Add View button that includes collection, id, and a timestamp
+            button_key = f"add_view_{item.get('collection', 'unknown')}_{item.get('id', 0)}_{datetime.now().timestamp()}"
+            if st.button("📷 Add View", key=button_key):
                 on_add_view(item['id'], item['collection'])
-            
-            st.markdown('</div>', unsafe_allow_html=True)
 
 
 

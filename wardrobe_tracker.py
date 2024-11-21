@@ -120,88 +120,102 @@ class WardrobeTracker:
         WardrobeAnalysis.visualize_analysis(image, features, matching_item, self.base64_to_image)
     def add_new_item(self, image, item_type, is_outfit=False, name=None, existing_id=None):
         """Add new item or add view to existing item with wear count and AI analysis"""
-        features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
-        if features is None:
-            return False
+        try:
+            features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
+            if features is None:
+                return False
 
-        if existing_id is not None:
-            # Add new view to existing item
-            collection = "outfits" if is_outfit else "items"
-            for item in self.database[collection]:
-                if item['id'] == existing_id:
-                    if 'reference_images' not in item:
-                        item['reference_images'] = []
-                        item['reference_features'] = []
-                        item['reference_images'].append(item['image'])
-                        item['reference_features'].append(item['features'])
+            if existing_id is not None:
+                # Add new view to existing item
+                collection = "outfits" if is_outfit else "items"
+                for item in self.database[collection]:
+                    if item['id'] == existing_id:
+                        if 'reference_images' not in item:
+                            item['reference_images'] = []
+                            item['reference_features'] = []
+                            item['reference_images'].append(item['image'])
+                            item['reference_features'].append(item['features'])
+                        
+                        item['reference_images'].append(self.image_to_base64(image))
+                        item['reference_features'].append(features.tolist())
+                        self.save_database()
+                        return True
+                return False
+            else:
+                # Create new item with initial view, wear count, and AI analysis
+                collection = "outfits" if is_outfit else "items"
+                
+                # Generate a new unique ID for the item
+                new_id = 0
+                existing_ids = set()
+                for item in self.database[collection]:
+                    existing_ids.add(item.get('id', 0))
+                while new_id in existing_ids:
+                    new_id += 1
+                
+                # Convert image to RGB for analysis
+                rgb_image = image.convert("RGB")
+                
+                try:
+                    # Import the background_loop from main.py
+                    from app import background_loop
+
+                    # Run the async function in the background event loop
+                    future = asyncio.run_coroutine_threadsafe(classify_outfit(rgb_image), background_loop)
+                    description = future.result()  # This will block until the result is available
                     
-                    item['reference_images'].append(self.image_to_base64(image))
-                    item['reference_features'].append(features.tolist())
+                    # Get style recommendations for the item if it exists in session state
+                    style_advice = None
+                    if 'style_advisor' in st.session_state:
+                        with st.spinner("Getting style recommendations..."):
+                            style_advice = st.session_state.style_advisor.get_style_advice(description)
+                    
+                    new_item = {
+                        "id": new_id,  # Use the unique ID we generated
+                        "type": item_type,
+                        "name": name or item_type,
+                        "reference_images": [self.image_to_base64(image)],
+                        "reference_features": [features.tolist()],
+                        "last_worn": datetime.now().isoformat(),
+                        "image": self.image_to_base64(image),
+                        "features": features.tolist(),
+                        "reset_period": 7,
+                        "wear_count": 1,
+                        "ai_analysis": description,
+                        "style_recommendations": style_advice["styling_tips"] if style_advice else None,
+                        "style_sources": style_advice["sources"] if style_advice else None
+                    }
+                    
+                    self.database[collection].append(new_item)
                     self.save_database()
+                    st.success("✅ Added to wardrobe with AI analysis!")
                     return True
+                    
+                except Exception as e:
+                    st.error(f"Error during AI analysis: {str(e)}")
+                    # Still add the item even if AI analysis fails, but use the unique ID
+                    new_item = {
+                        "id": new_id,  # Use the unique ID here too
+                        "type": item_type,
+                        "name": name or item_type,
+                        "reference_images": [self.image_to_base64(image)],
+                        "reference_features": [features.tolist()],
+                        "last_worn": datetime.now().isoformat(),
+                        "image": self.image_to_base64(image),
+                        "features": features.tolist(),
+                        "reset_period": 7,
+                        "wear_count": 1
+                    }
+                    
+                    self.database[collection].append(new_item)
+                    self.save_database()
+                    st.warning("⚠️ Added to wardrobe, but AI analysis failed")
+                    return True
+        except Exception as e:
+            st.error(f"Error adding item: {str(e)}")
+            if st.session_state.get('debug_mode', False):
+                st.write("Error details:", str(e))
             return False
-        else:
-            # Create new item with initial view, wear count, and AI analysis
-            collection = "outfits" if is_outfit else "items"
-            
-            # Convert image to RGB for analysis
-            rgb_image = image.convert("RGB")
-            
-            try:
-                # Import the background_loop from main.py
-                from app import background_loop
-
-                # Run the async function in the background event loop
-                future = asyncio.run_coroutine_threadsafe(classify_outfit(rgb_image), background_loop)
-                description = future.result()  # This will block until the result is available
-                
-                # Get style recommendations for the item if it exists in session state
-                style_advice = None
-                if 'style_advisor' in st.session_state:
-                    with st.spinner("Getting style recommendations..."):
-                        style_advice = st.session_state.style_advisor.get_style_advice(description)
-                
-                new_item = {
-                    "id": len(self.database[collection]),
-                    "type": item_type,
-                    "name": name or item_type,
-                    "reference_images": [self.image_to_base64(image)],
-                    "reference_features": [features.tolist()],
-                    "last_worn": datetime.now().isoformat(),
-                    "image": self.image_to_base64(image),
-                    "features": features.tolist(),
-                    "reset_period": 7,
-                    "wear_count": 1,
-                    "ai_analysis": description,  # Original AI analysis
-                    "style_recommendations": style_advice["styling_tips"] if style_advice else None,  # Add style recommendations
-                    "style_sources": style_advice["sources"] if style_advice else None  # Add sources
-                }
-                
-                self.database[collection].append(new_item)
-                self.save_database()
-                st.success("✅ Added to wardrobe with AI analysis!")
-                return True
-                
-            except Exception as e:
-                st.error(f"Error during AI analysis: {str(e)}")
-                # Still add the item even if AI analysis fails
-                new_item = {
-                    "id": len(self.database[collection]),
-                    "type": item_type,
-                    "name": name or item_type,
-                    "reference_images": [self.image_to_base64(image)],
-                    "reference_features": [features.tolist()],
-                    "last_worn": datetime.now().isoformat(),
-                    "image": self.image_to_base64(image),
-                    "features": features.tolist(),
-                    "reset_period": 7,
-                    "wear_count": 1
-                }
-                
-                self.database[collection].append(new_item)
-                self.save_database()
-                st.warning("⚠️ Added to wardrobe, but AI analysis failed")
-                return True
     
         # 4. Similarity Analysis (if there's a match)
         if matching_item is not None:
