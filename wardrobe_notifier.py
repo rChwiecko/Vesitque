@@ -14,7 +14,7 @@ class EmailNotifier:
         
         self.sender_email = os.getenv('GMAIL_ADDRESS')
         self.brevo_api_key = os.getenv('BREVO_API_KEY')
-        self.sambanova_api_key = os.getenv('SAMBANOVA_API_KEY')
+        self.sambanova_api_key = 'ba4070a0-299d-4e64-8952-0886808164b3'
         self.url = "https://api.sendinblue.com/v3/smtp/email"
         self.sambanova_url = "https://api.sambanova.ai/v1/chat/completions"
 
