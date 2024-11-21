@@ -16248,7 +16248,7 @@
                 0.01058197021484375
             ],
             "reset_period": 7,
-            "wear_count": 1,
+            "wear_count": 2,
             "ai_analysis": "{\n  \"type\": \"hoodie\",\n  \"material\": \"cotton blend\",\n  \"color\": {\n    \"primary\": \"black\",\n    \"secondary\": [\"yellow\"]\n  },\n  \"fit_and_style\": {\n    \"fit\": \"relaxed\",\n    \"style\": \"casual\"\n  },\n  \"design_features\": {\n    \"graphic_design\": \"bold, stylized text with star and flames\",\n    \"closures\": [\"drawstring hood\"],\n    \"pockets\": [\"kangaroo pocket\"],\n    \"ribbing\": [\"cuffs\", \"hem\"]\n  },\n  \"condition\": \"new or lightly worn\",\n  \"brand\": \"unknown\",\n  \"season\": \"all-season\",\n  \"use_case\": [\"casual outings\", \"athleisure\"],\n  \"size\": \"unknown\"\n}",
             "date_listed": "2024-11-17T16:07:57.910022",
             "original_collection": "items"

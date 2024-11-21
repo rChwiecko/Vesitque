@@ -36,11 +36,14 @@ class StyleAdvisor:
     def _initialize_vector_store(self) -> None:
         """Initialize FAISS vector store with balanced document representation"""
         try:
+            # Check for existing vector store first
             if Path('fashion_vectors.faiss').exists():
+                st.write("📚 Loading existing fashion knowledge base...")
                 self.vector_store = FAISS.load_local("fashion_vectors", self.embeddings)
-                st.info("✓ Loaded existing fashion knowledge base")
+                st.success("✓ Loaded existing fashion knowledge base!")
                 return
 
+            # If no existing store, create new one with current code
             all_docs = []
             st.write("📚 Loading fashion guides:")
             
