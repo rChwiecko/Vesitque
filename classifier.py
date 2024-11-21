@@ -5,21 +5,24 @@ import google.generativeai as genai
 import asyncio
 import aiohttp
 import requests
+import openai
+import base64
 # Set your Gemini API key
-GEMINI_API_KEY = 'AIzaSyByPi6Y6Pg1E929I7vdSuMr-0i00IBorKw'
 
 #setting up SambaNova
-LAM_API_KEY = '591a72d6-7705-4374-b3d9-1d528b17c5b3'
+LAM_API_KEY = 'ba4070a0-299d-4e64-8952-0886808164b3'
 API_URL = 'https://api.sambanova.ai/v1/chat/completions'
 HEADERS = {
     "Authorization": f"Bearer {LAM_API_KEY}",
     "Content-Type": "application/json"
 }
 
-
+client = openai.OpenAI(
+    api_key=LAM_API_KEY,
+    base_url="https://api.sambanova.ai/v1",
+)
 
 # Initialize the Gemini API client
-genai.configure(api_key=GEMINI_API_KEY)
 
 # Streamlit app title
 st.title("Image Analysis with Gemini API")
@@ -104,24 +107,14 @@ def prompt_llama(message, model="Meta-Llama-3.1-8B-Instruct", stream=False):
         return res_json['choices'][0]['message']['content']  # Return the parsed JSON response
     else:
         raise Exception(f"Llama API Error {llama_res.status_code}: {llama_res.text}")
-    # async with aiohttp.ClientSession() as session:
-    #     async with session.post(API_URL, headers=headers, json=data) as response:
-    #         if response.status == 200:
-    #             return await response
-    #         else:
-    #             error_text = await response.text()
-    #             raise Exception(f"Error {response.status}: {error_text}")
 
 
 
 
-async def analyze_image_gem(image_bytes):
-    # Initialize the Gemini model
-    gemini_model = genai.GenerativeModel(model_name='models/gemini-1.5-pro-001')
 
-    # Generate content using the Gemini model
-    response_gem = await gemini_model.generate_content_async(
-        [image_bytes, '''You are a skilled fashion designer with extensive expertise in analyzing and describing clothing. You are presented with an image of a clothing item. Your task is to provide an in-depth, professional description of the item based on the image. 
+
+
+llama_analyze_prompt = '''You are a skilled fashion designer with extensive expertise in analyzing and describing clothing. You are presented with an image of a clothing item. Your task is to provide an in-depth, professional description of the item based on the image. 
             Consider the following aspects in your analysis:
             1. **Type of Clothing**: Specify whether it is a shirt, dress, pants, skirt, jacket, etc.
             2. **Material**: Identify the fabric type (e.g., cotton, polyester, wool, silk) and texture (e.g., smooth, coarse, stretchy).
@@ -136,14 +129,46 @@ async def analyze_image_gem(image_bytes):
             For example: "This is a slim-fit men's button-up shirt made of high-quality cotton. It features a classic plaid pattern with shades of navy blue and white. The material appears smooth and slightly breathable, suitable for semi-formal occasions. The shirt is styled with a sharp collar, pearl-style buttons, and adjustable cuffs. Based on the visible tag, it is a product of [Brand Name]."
 
             Now, analyze the image provided and deliver a comprehensive description of the clothing item.
-        ''']
+        '''
+
+
+
+import base64
+from io import BytesIO
+
+def analyze_image_llama_vision(image):
+    # Convert the Pillow image to bytes
+    with BytesIO() as buffer:
+        image.save(buffer, format="JPEG")  # Use JPEG for smaller size
+        image_bytes = buffer.getvalue()
+
+    # Encode the image bytes to Base64 with proper MIME type prefix
+    base64_str = f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
+
+    # Send the request to the model
+    response = client.chat.completions.create(
+        model='Llama-3.2-90B-Vision-Instruct',
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": llama_analyze_prompt},
+                    {"type": "image_url", "image_url": {"url": base64_str}}
+                ]
+            }
+        ],
+        temperature=0.1,
+        top_p=0.1
     )
-    return str(response_gem.candidates[0].content.parts[0].text)
+
+    print("LLama response: ", response)
+    return response.choices[0].message.content
 
 
 async def classify_outfit(image):
-    response_gem = await (analyze_image_gem(image))
-    response_lam = prompt_llama(response_gem)
+    # response_gem = await (analyze_image_gem(image))
+    response_lam_analyze = analyze_image_llama_vision(image)
+    response_lam = prompt_llama(response_lam_analyze)
     return response_lam
 
 # Submit button
@@ -155,7 +180,7 @@ if st.button("Analyze Image"):
 
         # Convert image to bytes
         image_final = image.convert("RGB")
-
+        print("Llama vis res: ", analyze_image_llama_vision(image_final))
         # Run the async function to analyze the image
         try:
             with st.spinner("Analyzing image..."):
