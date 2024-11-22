@@ -31,55 +31,7 @@ def capture_tab(mode: str, tracker: WardrobeTracker, debug_mode: bool):
     if 'image_similarity' not in st.session_state:
         st.session_state['image_similarity'] = None
     # Custom CSS to force the camera layout
-    st.markdown("""
-        <style>
-        /* Main camera container */
-        .stCamera {
-            background-color: #1E1E1E !important;
-            border-radius: 10px !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 640px !important;
-            height: 480px !important;
-        }
-        
-        /* Video feed */
-        .stCamera > video {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-        }
-        
-        /* Captured image */
-        .stCamera > img {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: contain !important;
-            background-color: #1E1E1E !important;
-        }
-        
-        /* Clear photo button section */
-        .stCamera > div {
-            position: absolute !important;
-            bottom: 0 !important;
-            width: 100% !important;
-            background-color: rgba(0,0,0,0.7) !important;
-            padding: 8px !important;
-            border-radius: 0 0 10px 10px !important;
-        }
-
-        /* Center the camera in the page */
-        [data-testid="stHorizontalBlock"] {
-            justify-content: center !important;
-            background-color: transparent !important;
-        }
-
-        /* Remove any extra padding/margin */
-        .stApp {
-            margin: 0 auto !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    
     
     # Camera input in center of page
     camera = st.camera_input(
