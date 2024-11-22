@@ -40,19 +40,6 @@ def handle_update(tracker, item, new_wear_count, new_last_worn):
     return False
 
 def edit_wardrobe_tab(tracker: WardrobeTracker):
-    """
-    Implements the edit wardrobe interface allowing users to modify wardrobe items.
-    
-    Args:
-        tracker: WardrobeTracker instance
-            Must provide methods:
-            - base64_to_image()
-            - update_item()
-            - move_to_listings()
-            - save_database()
-            Must have attribute:
-            - database containing 'items' and 'outfits'
-    """
     st.subheader("Edit Wardrobe Items")
     
     all_items = (
@@ -66,6 +53,8 @@ def edit_wardrobe_tab(tracker: WardrobeTracker):
         
     for item in all_items:
         item_key = f"{item['id']}_{item['collection']}"
+        number_input_key = f"wear_count_{item_key}"
+        date_input_key = f"last_worn_{item_key}"
         
         with st.expander(f"{item.get('name', item['type'])}"):
             with st.form(key=f"form_{item_key}"):
@@ -77,28 +66,33 @@ def edit_wardrobe_tab(tracker: WardrobeTracker):
                         if image:
                             st.image(image, width=200)
                     
-                    wear_count = item.get('wear_count', 0)
+                    # Initialize widget state if not already set
+                    if number_input_key not in st.session_state:
+                        st.session_state[number_input_key] = int(item.get('wear_count', 0))
+                    
                     new_wear_count = st.number_input(
                         "Times worn",
                         min_value=0,
-                        value=wear_count,
-                        key=f"wear_count_{item_key}"
+                        key=number_input_key
                     )
                 
                 with col2:
                     last_worn = datetime.fromisoformat(item["last_worn"]).date()
+                    
+                    # Initialize widget state if not already set
+                    if date_input_key not in st.session_state:
+                        st.session_state[date_input_key] = last_worn
+                    
                     new_last_worn = st.date_input(
                         "Last worn date",
-                        value=last_worn,
                         max_value=datetime.now().date(),
-                        key=f"last_worn_{item_key}"
+                        key=date_input_key
                     )
                     
                     days_since = (datetime.now().date() - new_last_worn).days
                     days_remaining = max(0, 7 - days_since)
                     st.warning(f"⏳ {days_remaining} days remaining")
                 
-                # Place 'Update' and 'Delete' buttons inside the form
                 col_update, col_delete = st.columns(2)
                 with col_update:
                     submitted = st.form_submit_button("Update", use_container_width=True)
@@ -117,4 +111,4 @@ def edit_wardrobe_tab(tracker: WardrobeTracker):
                     tracker.save_database()
                     st.success("🗑️ Item deleted!")
                     time.sleep(0.5)
-                    st.rerun()
+                    st.experimental_rerun()
