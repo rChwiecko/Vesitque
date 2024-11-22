@@ -88,33 +88,39 @@ class StyleAdvisor:
     def get_style_advice(self, item_description: Dict | str) -> Dict[str, str]:
         """Get style advice using both style guide and color theory sources"""
         try:
-            logging.info(f"Initial item_description: {item_description}")  # Debug log
+            logging.info(f"Initial item_description: {item_description}")
             
             # Parse item details from ai_analysis if it's a JSON string
             if isinstance(item_description, dict) and 'ai_analysis' in item_description:
-                logging.info("Found ai_analysis in item_description")  # Debug log
+                logging.info("Found ai_analysis in item_description")
                 try:
                     # Extract JSON content from AI analysis if it exists
                     ai_analysis = item_description['ai_analysis']
-                    logging.info(f"Raw AI analysis: {ai_analysis}")  # Debug log
+                    logging.info(f"Raw AI analysis: {ai_analysis}")
                     
                     if ai_analysis and isinstance(ai_analysis, str) and '```json' in ai_analysis:
                         json_content = ai_analysis.split('```json\n')[1].split('\n```')[0]
                         analysis_data = json.loads(json_content)
-                        logging.info(f"Parsed analysis data: {analysis_data}")  # Debug log
+                        logging.info(f"Parsed analysis data: {analysis_data}")
+                        
+                        # Use type from AI analysis if available, otherwise use item's type
+                        item_type = analysis_data.get('type') or item_description.get('type', 'Unknown')
                         
                         # Combine item name and analysis data
                         item_description = {
                             **analysis_data,
+                            'type': item_type,  # Use the more specific type
                             'name': item_description.get('name', ''),
                             'brand': analysis_data.get('brand') or item_description.get('brand', 'Unknown')
                         }
-                        logging.info(f"Combined item description: {item_description}")  # Debug log
+                        logging.info(f"Combined item description: {item_description}")
                 except (IndexError, json.JSONDecodeError) as e:
                     logging.error(f"Error parsing AI analysis JSON: {e}")
+                    item_type = item_description.get('type', 'Unknown')
+            else:
+                item_type = item_description.get('type', 'Unknown')
             
             # Get item details with proper fallbacks
-            item_type = item_description.get('type', 'Unknown')
             brand = item_description.get('brand', 'Unknown')
             name = item_description.get('name', f"{brand} {item_type}").strip()
             color_info = item_description.get('color', {})
@@ -135,7 +141,7 @@ class StyleAdvisor:
             - Fit: {fit}
             - Style: {style}
             - Material: {material}
-            """)  # Debug log
+            """)
 
             # Create specific queries using actual item details
             style_queries = {
