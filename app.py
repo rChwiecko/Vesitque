@@ -165,12 +165,6 @@ def initialize_database():
         # Ensure we have a valid database even if something goes wrong
         with open(database_path, 'w') as file:
             json.dump(initial_data, file)
-
-
-
-
-
-
    
 def initialize_notification_state():
     if 'notification_state' not in st.session_state:
