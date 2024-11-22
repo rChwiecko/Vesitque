@@ -1,0 +1,14 @@
+streamlit
+Pillow
+numpy
+python-dotenv
+requests
+scikit-learn
+matplotlib
+seaborn
+opencv-python
+langchain
+langchain-community
+transformers
+torch
+faiss-cpu

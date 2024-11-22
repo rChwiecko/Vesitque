@@ -60,7 +60,7 @@ def inject_css():
     st.markdown("""
         <style>
         /* Main camera container */
-        .stCamera {
+        [data-testid="stCamera"] {
             background-color: #1E1E1E !important;
             border-radius: 10px !important;
             padding: 0 !important;
@@ -73,7 +73,7 @@ def inject_css():
         }
         
         /* Video feed */
-        .stCamera > video {
+        [data-testid="stCamera"] > video {
             transform: rotate(90deg) !important; /* Rotate video feed */
             width: 100% !important;
             height: 100% !important;
@@ -81,7 +81,7 @@ def inject_css():
         }
         
         /* Captured image */
-        .stCamera > img {
+        [data-testid="stCamera"] > img {
             width: 100% !important;
             height: 100% !important;
             object-fit: contain !important;
@@ -89,7 +89,7 @@ def inject_css():
         }
         
         /* Clear photo button section */
-        .stCamera > div {
+        [data-testid="stCamera"] > div {
             position: absolute !important;
             bottom: 0 !important;
             width: 100% !important;
@@ -110,6 +110,8 @@ def inject_css():
         }
         </style>
     """, unsafe_allow_html=True)
+
+
 
 def fashion_agent(tracker):
     st.title("🤖 SambaFit")
@@ -236,6 +238,8 @@ def initialize_camera_state():
         st.session_state.first_run = True
     if 'image_processed' not in st.session_state:
         st.session_state['image_processed'] = False
+    
+    inject_css()
 
 
 def main():
@@ -254,6 +258,8 @@ def main():
     # Initialize dev mode in session state if not exists
     if 'dev_mode' not in st.session_state:
         st.session_state.dev_mode = False   
+    if 'last_mode' not in st.session_state:
+        st.session_state.last_mode = False
     # Sidebar controls
     with st.sidebar:
         st.subheader("Settings")
@@ -315,10 +321,13 @@ def main():
         if new_reset_period != tracker.reset_period:
             tracker.reset_period = new_reset_period
             st.success(f"Default reset period updated to {new_reset_period} days!")
-
+     # Check if mode changed and reapply CSS
+    if st.session_state.last_mode != st.session_state.dev_mode:
+        inject_css()
+        st.session_state.last_mode = st.session_state.dev_mode
     # Main content - conditional rendering based on dev_mode
     if st.session_state.dev_mode:
-        
+        inject_css()
         developer_assistant()
     else:
         
