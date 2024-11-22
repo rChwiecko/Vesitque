@@ -128,7 +128,8 @@ class WardrobeUI:
                 # Ensure we only render existing items
                 if item_index < num_items:
                     with cols[col_index]:
-                        WardrobeUI.render_item_card(items[item_index], base64_to_image, on_add_view)
+                        item = items[item_index]
+                        WardrobeUI.render_item_card(item, base64_to_image, on_add_view)
 
     @staticmethod
     def render_item_card(item, base64_to_image, on_add_view):
@@ -138,13 +139,9 @@ class WardrobeUI:
             hanger_svg = """
             <div class="hanger-bar">
                 <svg viewBox="0 0 1000 60" preserveAspectRatio="none">
-                <!-- The "U" shape -->
                 <path d="M450 5 L450 15 Q450 20 500 20 Q550 20 550 15 L550 5" />
-                <!-- The horizontal line -->
                 <path d="M50 40 L450 40 Q500 40 550 40 L950 40" />
-                <!-- Left diagonal line -->
                 <path d="M450 15 L50 40" stroke="#333" stroke-width="2" fill="none" />
-                <!-- Right diagonal line -->
                 <path d="M550 15 L950 40" stroke="#333" stroke-width="2" fill="none" />
                 </svg>
             </div>
@@ -191,10 +188,10 @@ class WardrobeUI:
                 st.markdown(
                     f'<div class="view-count">📸 {num_views} views</div>',
                     unsafe_allow_html=True
-                )
+            )
             
-            # Generate a unique key for the Add View button that includes collection, id, and a timestamp
-            button_key = f"add_view_{item.get('collection', 'unknown')}_{item.get('id', 0)}_{datetime.now().timestamp()}"
+            # Add View button with a unique key
+            button_key = f"add_view_{item['collection']}_{item['id']}_{hash(item['last_worn'])}"
             if st.button("📷 Add View", key=button_key):
                 on_add_view(item['id'], item['collection'])
 

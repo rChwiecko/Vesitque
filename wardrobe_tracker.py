@@ -399,7 +399,8 @@ class WardrobeTracker:
             if 'reference_images' in item:
                 num_views = len(item['reference_images'])
                 st.caption(f"📸 {num_views} views of this item")
-            # Add style recommendations section here
+            
+            # Style recommendations section
             if 'style_recommendations' in item and item['style_recommendations']:
                 with st.expander("👔 Style Suggestions"):
                     st.markdown(item['style_recommendations'])
@@ -419,13 +420,15 @@ class WardrobeTracker:
                             item['style_sources'] = style_advice["sources"]
                             self.save_database()
                             st.rerun()
+
+            # Add View button and camera functionality
             col1, col2 = st.columns([3, 1])
             with col2:
-                if st.button("Add View", key=f"add_view_{item['collection']}_{item['id']}"):
-
+                if st.button("Add View", key=f"add_view_btn_{item['collection']}_{item['id']}"):
                     st.session_state['adding_view_to'] = item['id']
                     st.session_state['adding_view_type'] = 'outfit' if item.get('type') == 'Full Outfit' else 'item'
             
+            # Show camera input if Add View was clicked for this item
             if st.session_state.get('adding_view_to') == item['id']:
                 camera = st.camera_input(
                     "Take another photo of this item",
