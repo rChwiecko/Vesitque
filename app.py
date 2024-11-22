@@ -269,16 +269,11 @@ def main():
         debug_mode = st.checkbox("Debug Mode")
         st.session_state['debug_mode'] = debug_mode
         
-        # Add Developer Mode toggle
+        # Developer Mode toggle
         st.divider()
         st.subheader("👨‍💻 Developer Tools")
-        dev_mode = st.toggle('Developer Assistant', help="Switch to Developer Assistant mode")
-        if dev_mode != st.session_state.dev_mode:
-            st.session_state.dev_mode = dev_mode
-            # Clear selected files when exiting dev mode
-            if not dev_mode and 'selected_files' in st.session_state:
-                st.session_state.selected_files = []
-            st.rerun()
+        dev_mode = st.checkbox('Developer Assistant', value=st.session_state.dev_mode, help="Switch to Developer Assistant mode")
+        st.session_state.dev_mode = dev_mode
 
         # Email Settings in Sidebar
         st.divider()
@@ -323,8 +318,11 @@ def main():
 
     # Main content - conditional rendering based on dev_mode
     if st.session_state.dev_mode:
+        
         developer_assistant()
     else:
+        
+
         # Regular app tabs
         tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
             "Capture", "My Wardrobe", "Edit Wardrobe", 
@@ -332,6 +330,7 @@ def main():
         ])
         
         with tab1:
+            
             capture_tab(mode, tracker, debug_mode)
         
         with tab2:
@@ -354,9 +353,7 @@ def main():
 
         with tab8:
             fashion_agent(tracker)
-        
+            
     
-    
-
 if __name__ == "__main__":
     main()
