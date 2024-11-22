@@ -111,4 +111,4 @@ def edit_wardrobe_tab(tracker: WardrobeTracker):
                     tracker.save_database()
                     st.success("🗑️ Item deleted!")
                     time.sleep(0.5)
-                    st.experimental_rerun()
+                    st.rerun()
