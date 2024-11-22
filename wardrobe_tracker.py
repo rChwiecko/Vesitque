@@ -45,7 +45,7 @@ class WardrobeTracker:
             "Accessory": "👔",
             "Full Outfit": "👔"
         }
-    def add_new_item_sync(self, image, item_type, is_outfit=False, name=None, existing_id=None):
+    def add_new_item_sync(self, image, item_type, is_outfit=False, name=None, existing_id=None, additional_data=None):
         """Synchronous version of add_new_item for fallback"""
         features = self.feature_extractor.extract_features(image, is_full_outfit=is_outfit)
         if features is None:
@@ -71,8 +71,16 @@ class WardrobeTracker:
             # Create new item with initial view and wear count
             collection = "outfits" if is_outfit else "items"
             
+            # Generate a new unique ID
+            new_id = 0
+            existing_ids = set()
+            for item in self.database[collection]:
+                existing_ids.add(item.get('id', 0))
+            while new_id in existing_ids:
+                new_id += 1
+            
             new_item = {
-                "id": len(self.database[collection]),
+                "id": new_id,
                 "type": item_type,
                 "name": name or item_type,
                 "reference_images": [self.image_to_base64(image)],
@@ -83,6 +91,15 @@ class WardrobeTracker:
                 "reset_period": 7,
                 "wear_count": 1
             }
+            
+            # Add AI analysis and style data if provided
+            if additional_data:
+                if 'ai_analysis' in additional_data:
+                    new_item['ai_analysis'] = additional_data['ai_analysis']
+                if 'style_recommendations' in additional_data:
+                    new_item['style_recommendations'] = additional_data['style_recommendations']
+                if 'style_sources' in additional_data:
+                    new_item['style_sources'] = additional_data['style_sources']
             
             self.database[collection].append(new_item)
             self.save_database()

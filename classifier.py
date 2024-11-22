@@ -66,7 +66,7 @@ def prompt_llama(message, model="Meta-Llama-3.1-8B-Instruct", stream=False):
                     8. **Season**: Suggest the appropriate season for wearing the item (e.g., summer, winter, all-season).
                     9. **Use Case**: Suggest use cases for the clothing item (e.g., office wear, party wear, casual outing).
                     10. **Size and Dimensions** (if possible): Include any visible size labels or inferred dimensions (e.g., small, medium, large).
-
+                     DO NOT HALLUCINATE STRICTLY FOLLOW INSTRUCTION STRICTLY FOLLOW JSON OUTPUT
                     ### Example JSON Output:
                     ```json
                     {
@@ -131,7 +131,7 @@ llama_analyze_prompt = '''You are a skilled fashion designer with extensive expe
 
             For example: "This is a slim-fit men's button-up shirt made of high-quality cotton. It features a classic plaid pattern with shades of navy blue and white. The material appears smooth and slightly breathable, suitable for semi-formal occasions. The shirt is styled with a sharp collar, pearl-style buttons, and adjustable cuffs. Based on the visible tag, it is a product of [Brand Name]."
 
-            Now, analyze the image provided and deliver a comprehensive description of the clothing item.
+            Now, analyze the image provided and deliver a comprehensive description of the clothing item. DO NOT HALLUCINATE STRICTLY FOLLOW INSTRUCTION
         '''
 
 

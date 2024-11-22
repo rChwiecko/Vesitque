@@ -277,21 +277,29 @@ def marketplace_tab(tracker, email_notifier):
                             col3, col4 = st.columns([1, 1])
                             with col3:
                                 if st.button("Claim", key=f"claim_{item['id']}"):
+                                    # Get all the additional data before removing the item
+                                    additional_data = {
+                                        'ai_analysis': item.get('ai_analysis', ''),
+                                        'style_recommendations': item.get('style_recommendations', ''),
+                                        'style_sources': item.get('style_sources', '')
+                                    }
+
                                     # Remove the item from the marketplace
                                     if marketplace.remove_item(item['id']):
                                         st.success(f"Item '{item.get('name', 'Unnamed')}' claimed successfully!")
 
-                                        # Add the item to the wardrobe
+                                        # Add the item to the wardrobe with all the additional data
                                         claimed_image = marketplace.base64_to_image(item["image"])
                                         success = tracker.add_new_item_sync(
                                             claimed_image,
                                             item["type"],
-                                            is_outfit=False,  # Assuming it's not a full outfit
-                                            name=item.get("name", item["type"])
+                                            is_outfit=False,
+                                            name=item.get("name", item["type"]),
+                                            additional_data=additional_data
                                         )
 
                                         if success:
-                                            st.success("Item added to your wardrobe!")
+                                            st.success("Item added to your wardrobe with AI analysis!")
                                         else:
                                             st.error("Failed to add the item to your wardrobe.")
             else:
