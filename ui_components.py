@@ -9,6 +9,15 @@ class WardrobeUI:
         """Add CSS styling for the wardrobe cards"""
         st.markdown("""
             <style>
+            .countdown {
+                background: linear-gradient(90deg, #5D4037 0%, #8B6B61 50%, #5D4037 100%);
+                border-radius: 8px;
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+                margin: 0.5rem 0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                color: rgba(255,255,255,0.9);
+            }
             /* All other styles remain exactly the same */
             .hanger-bar {
                 width: 100%;
@@ -200,7 +209,6 @@ class WardrobeUI:
     @staticmethod
     def render_item_card(item, base64_to_image, on_add_view):
         with st.container():
-            # Hanger SVG stays the same
             hanger_svg = """
             <div class="hanger-bar">
                 <svg viewBox="0 0 1000 60" preserveAspectRatio="none">
@@ -213,7 +221,6 @@ class WardrobeUI:
             """
             st.markdown(hanger_svg, unsafe_allow_html=True)
             
-            # Simplified image with frame
             if 'image' in item:
                 try:
                     image = base64_to_image(item['image'])
@@ -229,7 +236,6 @@ class WardrobeUI:
                 except Exception:
                     st.image("placeholder.png", use_column_width=True)
             
-            # Rest of the code stays exactly the same
             emoji = "🧥" if item.get('type') in ['Hoodie', 'Jacket'] else "👔"
             st.markdown(
                 f'<div class="item-name">{emoji} {item.get("name", item["type"])}</div>', 
@@ -240,10 +246,13 @@ class WardrobeUI:
             days_since = (datetime.now() - last_worn).days
             days_remaining = max(0, item.get('reset_period', 7) - days_since)
             
-            countdown_color = "#4A934A" if days_remaining == 0 else "#B4926A"
+            # Updated to use consistent brown gradient theme
             st.markdown(
-                f'<div class="countdown" style="background-color: {countdown_color}">'
-                f'⏳ {days_remaining} days remaining</div>',
+                f"""
+                <div class="countdown">
+                    ⏳ {days_remaining} days remaining
+                </div>
+                """,
                 unsafe_allow_html=True
             )
             
