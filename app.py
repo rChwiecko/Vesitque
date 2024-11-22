@@ -174,13 +174,10 @@ logging.basicConfig(
     # else:
     #     st.info("Add some items to your wardrobe to get personalized style advice!")
 
-
-
 def fashion_agent(tracker):
     st.title("🤖 SambaFit")
     
     st.markdown("Welcome to SambaFit! Ask me to create an outfit for the day!")
-
 
     model_data = []
     for item in tracker.database['items']:
@@ -195,12 +192,18 @@ def fashion_agent(tracker):
         if message["role"] == "user":
             st.markdown(f"**You:** {message['content']}")
         else:
-            st.markdown(f"**SambaFit:** {message['content']}")
+            if isinstance(message["content"], list):  # If the bot's response contains images
+                for img_b64 in message["content"]:
+                    # Convert and display the image
+                    image = tracker.base64_to_image(img_b64)
+                    st.image(image, caption="Suggested Outfit", use_column_width=True)
+            else:
+                st.markdown(f"**SambaFit:** {message['content']}")
 
     # Callback function to process input
     def handle_input():
         # Retrieve user input
-        user_input = st.session_state["user_input"]
+        user_input = st.session_state.get("unique_user_input", "")
 
         if user_input:
             # Add user's message to chat history
@@ -209,20 +212,37 @@ def fashion_agent(tracker):
             # Generate a response (placeholder for now)
             # Replace with API call to SambaFit AI when integrated
             response = generate_response(user_input, model_data)
+            images_res = []
+            for item in response:
+                # Grab the key
+                key = list(item.keys())[0]
+                b64 = get_base_64_by_id(tracker, key)
+                if b64 is not None:
+                    images_res.append(b64)
 
-            # Add bot's response to chat history
-            st.session_state["messages"].append({"role": "bot", "content": response})
+            print(images_res)
+            # Add the images to the bot's response in the chat
+            st.session_state["messages"].append({"role": "bot", "content": images_res})
+
+            # Display success message
+            st.success("Response successfully updated with suggested outfits!")
 
             # Clear the input box
-            st.session_state["user_input"] = ""
+            st.session_state["unique_user_input"] = ""
 
-    # User input box with on_change callback
+    # User input box with a unique key
     st.text_input(
         "Type details here (weather, occasion etc):",
-        key="user_input",
+        key="unique_user_input",  # Ensure the key is unique
         on_change=handle_input,
     )
 
+
+def get_base_64_by_id(tracker, id):
+    for item in tracker.database['items']:
+        if str(item["id"]) == id:
+            return item['image']
+    return None
 
 def generate_response(user_input, data):
     print("data: ",data)

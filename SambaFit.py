@@ -101,15 +101,15 @@ def model2_select_items(tokens, database, model='Meta-Llama-3.1-70B-Instruct'):
                     Analyze the database. Select items where the AI analysis aligns with the tokens provided. 
                     Return the output in this format:
                     [
-                        {{"<item description>": "<item_id>"}},
+                        {{"<item_id>":"<item description>"}},
                         ...
                     ]
                     Do not include any additional text.
 
                     ### Example Response Format:
                     [
-                        {{"shirt": "101"}},
-                        {{"pants": "102"}}
+                        {{"101":"shirt"}},
+                        {{"102":"pants"}}
                     ]
                 """
             }
