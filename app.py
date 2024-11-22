@@ -27,13 +27,13 @@ from decide_match import decide_match
 
 from dotenv import load_dotenv
 from SambaFit import *
-# from style_advisor import StyleAdvisor
+from style_advisor import StyleAdvisor
 from preferences_tab import preferences_tab
 from edit_wardrobe_tab import edit_wardrobe_tab
 from capture_tab import capture_tab
 from notifications_tab import notifications_tab
 from marketplace_tab import marketplace_tab
-# from style_advisor_tab import style_advisor_tab
+from style_advisor_tab import style_advisor_tab
 from developer_assistant import developer_assistant
 from fashion_agent import fashion_agent
 
@@ -175,8 +175,8 @@ def main():
     feature_extractor = FeatureExtractor()
     tracker = WardrobeTracker(feature_extractor)
     email_notifier = EmailNotifier()
-    # if 'style_advisor' not in st.session_state:
-    #     st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)
+    if 'style_advisor' not in st.session_state:
+        st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)
     # Initialize dev mode in session state if not exists
     if 'dev_mode' not in st.session_state:
         st.session_state.dev_mode = False   
@@ -279,8 +279,8 @@ def main():
         with tab6:
             marketplace_tab(tracker, email_notifier)
 
-        # with tab7:
-        #     style_advisor_tab(tracker)
+        with tab7:
+            style_advisor_tab(tracker)
 
         with tab8:
             fashion_agent(tracker)
