@@ -16,6 +16,29 @@ from datetime import datetime
 import time
 from wardrobe_tracker import WardrobeTracker
 
+def handle_update(tracker, item, new_wear_count, new_last_worn):
+    """Helper function to handle item updates."""
+    days_since = (datetime.now().date() - new_last_worn).days
+    
+    success = tracker.update_item(
+        item['id'],
+        item['collection'],
+        datetime.combine(new_last_worn, datetime.min.time()).isoformat(),
+        int(new_wear_count)
+    )
+    
+    if success:
+        st.success("✅ Item updated!")
+        
+        # Check if item should be moved to marketplace
+        if days_since >= 8:
+            tracker.move_to_listings(item['id'], item['collection'])
+            st.info("📦 Item moved to marketplace due to inactivity")
+            time.sleep(0.5)
+            st.rerun()
+        return True
+    return False
+
 def edit_wardrobe_tab(tracker: WardrobeTracker):
     """
     Implements the edit wardrobe interface allowing users to modify wardrobe items.
@@ -42,8 +65,10 @@ def edit_wardrobe_tab(tracker: WardrobeTracker):
         return
         
     for item in all_items:
+        item_key = f"{item['id']}_{item['collection']}"
+        
         with st.expander(f"{item.get('name', item['type'])}"):
-            with st.form(key=f"form_{item['id']}_{item['collection']}"):
+            with st.form(key=f"form_{item_key}"):
                 col1, col2 = st.columns([2, 1])
                 
                 with col1:
@@ -52,19 +77,21 @@ def edit_wardrobe_tab(tracker: WardrobeTracker):
                         if image:
                             st.image(image, width=200)
                     
+                    wear_count = item.get('wear_count', 0)
                     new_wear_count = st.number_input(
                         "Times worn",
                         min_value=0,
-                        value=item.get('wear_count', 0),
-                        key=f"wear_count_{item['id']}_{item['collection']}"
+                        value=wear_count,
+                        key=f"wear_count_{item_key}"
                     )
                 
                 with col2:
+                    last_worn = datetime.fromisoformat(item["last_worn"]).date()
                     new_last_worn = st.date_input(
                         "Last worn date",
-                        value=datetime.fromisoformat(item["last_worn"]).date(),
+                        value=last_worn,
                         max_value=datetime.now().date(),
-                        key=f"last_worn_{item['id']}_{item['collection']}"
+                        key=f"last_worn_{item_key}"
                     )
                     
                     days_since = (datetime.now().date() - new_last_worn).days
@@ -72,24 +99,15 @@ def edit_wardrobe_tab(tracker: WardrobeTracker):
                     st.warning(f"⏳ {days_remaining} days remaining")
                 
                 # Place 'Update' and 'Delete' buttons inside the form
-                submitted = st.form_submit_button("Update")
-                delete_clicked = st.form_submit_button("Delete Item")
+                col_update, col_delete = st.columns(2)
+                with col_update:
+                    submitted = st.form_submit_button("Update", use_container_width=True)
+                with col_delete:
+                    delete_clicked = st.form_submit_button("Delete Item", use_container_width=True)
                 
                 if submitted:
-                    success = tracker.update_item(
-                        item['id'],
-                        item['collection'],
-                        datetime.combine(new_last_worn, datetime.min.time()).isoformat(),
-                        int(new_wear_count)
-                    )
-                    if success:
-                        st.success("✅ Item updated!")
-                        
-                        # Check if item should be moved to marketplace
-                        if days_since >= 8:
-                            tracker.move_to_listings(item['id'], item['collection'])
-                            st.info("📦 Item moved to marketplace due to inactivity")
-                        
+                    handle_update(tracker, item, new_wear_count, new_last_worn)
+                
                 if delete_clicked:
                     collection = item['collection']
                     tracker.database[collection] = [
@@ -98,3 +116,5 @@ def edit_wardrobe_tab(tracker: WardrobeTracker):
                     ]
                     tracker.save_database()
                     st.success("🗑️ Item deleted!")
+                    time.sleep(0.5)
+                    st.rerun()
