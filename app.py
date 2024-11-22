@@ -27,20 +27,21 @@ from decide_match import decide_match
 
 from dotenv import load_dotenv
 from SambaFit import *
-from style_advisor import StyleAdvisor
+# from style_advisor import StyleAdvisor
 from preferences_tab import preferences_tab
 from edit_wardrobe_tab import edit_wardrobe_tab
 from capture_tab import capture_tab
 from notifications_tab import notifications_tab
 from marketplace_tab import marketplace_tab
-from style_advisor_tab import style_advisor_tab
+# from style_advisor_tab import style_advisor_tab
 from developer_assistant import developer_assistant
+from fashion_agent import fashion_agent
 
 
 # Load environment variables
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
-SAMBANOVA_API_KEY = 'ba4070a0-299d-4e64-8952-0886808164b3'
+SAMBANOVA_API_KEY = os.environ["SAMBANOVA_API_KEY"]
 best = [
 { "type": "blazer", "material": "polyester blend", "color": { "primary": "beige", "secondary": [] }, "fit_and_style": { "fit": "slightly relaxed", "style": "contemporary" }, "design_features": { "closure": "single-breasted with single button", "lapel": "notched", "sleeves": "long, cuffless" }, "condition": "new or like-new", "brand": "unknown", "season": "all-season", "use_case": ["professional settings", "casual outings"], "size": "unknown" }
 ]
@@ -113,85 +114,6 @@ def inject_css():
 
 
 
-def fashion_agent(tracker):
-    st.title("🤖 SambaFit")
-    
-    st.markdown("Welcome to SambaFit! Ask me to create an outfit for the day!")
-
-    model_data = []
-    for item in tracker.database['items']:
-        model_data.append({item['id']: item['ai_analysis']})
-
-    # Chat history
-    if "messages" not in st.session_state:
-        st.session_state["messages"] = []
-
-    # Display chat history
-    for message in st.session_state["messages"]:
-        if message["role"] == "user":
-            st.markdown(f"**You:** {message['content']}")
-        else:
-            if isinstance(message["content"], list):  # If the bot's response contains images
-                for img_b64 in message["content"]:
-                    # Convert and display the image
-                    image = tracker.base64_to_image(img_b64)
-                    st.image(image, caption="Suggested Outfit", use_column_width=True)
-            else:
-                st.markdown(f"**SambaFit:** {message['content']}")
-
-    # Callback function to process input
-    def handle_input():
-        # Retrieve user input
-        user_input = st.session_state.get("unique_user_input", "")
-
-        if user_input:
-            # Add user's message to chat history
-            st.session_state["messages"].append({"role": "user", "content": user_input})
-
-            # Generate a response (placeholder for now)
-            # Replace with API call to SambaFit AI when integrated
-            response = generate_response(user_input, model_data)
-            images_res = []
-            for item in response:
-                # Grab the key
-                key = list(item.keys())[0]
-                b64 = get_base_64_by_id(tracker, key)
-                if b64 is not None:
-                    images_res.append(b64)
-
-            print(images_res)
-            # Add the images to the bot's response in the chat
-            st.session_state["messages"].append({"role": "bot", "content": images_res})
-
-            # Display success message
-            st.success("Response successfully updated with suggested outfits!")
-
-            # Clear the input box
-            st.session_state["unique_user_input"] = ""
-
-    # User input box with a unique key
-    st.text_input(
-        "Type details here (weather, occasion etc):",
-        key="unique_user_input",  # Ensure the key is unique
-        on_change=handle_input,
-    )
-
-
-def get_base_64_by_id(tracker, id):
-    for item in tracker.database['items']:
-        if str(item["id"]) == id:
-            return item['image']
-    return None
-
-def generate_response(user_input, data):
-    print("data: ",data)
-    model1_res = model1_tokenize_prompt(user_input)
-    print("tokens: ", model1_res)
-    overall_res = model2_select_items(model1_res, data)
-    print("overall: ",overall_res)
-    return overall_res
-
-
 def initialize_database():
     """Initialize the database file if it doesn't exist or is empty"""
     database_path = 'clothing_database.json'
@@ -253,8 +175,8 @@ def main():
     feature_extractor = FeatureExtractor()
     tracker = WardrobeTracker(feature_extractor)
     email_notifier = EmailNotifier()
-    if 'style_advisor' not in st.session_state:
-        st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)
+    # if 'style_advisor' not in st.session_state:
+    #     st.session_state.style_advisor = StyleAdvisor(SAMBANOVA_API_KEY)
     # Initialize dev mode in session state if not exists
     if 'dev_mode' not in st.session_state:
         st.session_state.dev_mode = False   
@@ -357,8 +279,8 @@ def main():
         with tab6:
             marketplace_tab(tracker, email_notifier)
 
-        with tab7:
-            style_advisor_tab(tracker)
+        # with tab7:
+        #     style_advisor_tab(tracker)
 
         with tab8:
             fashion_agent(tracker)

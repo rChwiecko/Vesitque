@@ -2,23 +2,28 @@ import streamlit as st
 from PIL import Image
 import io
 import google.generativeai as genai
+from dotenv import load_dotenv
 import asyncio
 import aiohttp
 import requests
 import openai
 import base64
+import os
+from pathlib import Path
 # Set your Gemini API key
 
 #setting up SambaNova
-LAM_API_KEY = 'ba4070a0-299d-4e64-8952-0886808164b3'
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
+SAMBANOVA_API_KEY = os.environ["SAMBANOVA_API_KEY"]
 API_URL = 'https://api.sambanova.ai/v1/chat/completions'
 HEADERS = {
-    "Authorization": f"Bearer {LAM_API_KEY}",
+    "Authorization": f"Bearer {SAMBANOVA_API_KEY}",
     "Content-Type": "application/json"
 }
 
 client = openai.OpenAI(
-    api_key=LAM_API_KEY,
+    api_key=SAMBANOVA_API_KEY,
     base_url="https://api.sambanova.ai/v1",
 )
 
@@ -31,7 +36,7 @@ client = openai.OpenAI(
 
 def prompt_llama(message, model="Meta-Llama-3.1-8B-Instruct", stream=False):
     headers = {
-        "Authorization": f"Bearer {LAM_API_KEY}",
+        "Authorization": f"Bearer {SAMBANOVA_API_KEY}",
         "Content-Type": "application/json"
     }
 

@@ -1,8 +1,13 @@
 import requests
-LAM_API_KEY = 'ba4070a0-299d-4e64-8952-0886808164b3'
+from dotenv import load_dotenv
+from pathlib import Path
+import os
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
+SAMBANOVA_API_KEY = os.environ["SAMBANOVA_API_KEY"]
 API_URL = 'https://api.sambanova.ai/v1/chat/completions'
 HEADERS = {
-    "Authorization": f"Bearer {LAM_API_KEY}",
+    "Authorization": f"Bearer {SAMBANOVA_API_KEY}",
     "Content-Type": "application/json"
 }
 

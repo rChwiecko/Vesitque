@@ -1,8 +1,13 @@
 import requests
-LAM_API_KEY = 'ba4070a0-299d-4e64-8952-0886808164b3'
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
+SAMBANOVA_API_KEY = os.environ["SAMBANOVA_API_KEY"]
 API_URL = 'https://api.sambanova.ai/v1/chat/completions'
 HEADERS = {
-    "Authorization": f"Bearer {LAM_API_KEY}",
+    "Authorization": f"Bearer {SAMBANOVA_API_KEY}",
     "Content-Type": "application/json"
 }
 import json
@@ -73,7 +78,7 @@ def model2_select_items(tokens, database, model='Meta-Llama-3.1-70B-Instruct'):
         model (str): The Llama model to use for the task.
 
     Returns:
-        list: A JSON array where each element is a dictionary of the form {"item description": item_id}.
+        list: A JSON array where each element is a dictionary of the form {"item_id": "item description"}.
     """
     data = {
         "stream": False,
@@ -82,14 +87,19 @@ def model2_select_items(tokens, database, model='Meta-Llama-3.1-70B-Instruct'):
             {
                 "role": "system",
                 "content": (
-                    "You are an intelligent assistant tasked with selecting wardrobe items based on user preferences and conditions. "
-                    "Your response MUST strictly adhere to the specified format without additional text or explanations."
+                    "You are an intelligent wardrobe assistant tasked with selecting appropriate clothing items from a database "
+                    "based on user-provided tokens (e.g., weather, occasion, preferences). "
+                    "Make lenient and adaptive decisions based on the clothing type and context. "
+                    "Use logical reasoning to prioritize suitable clothing items, such as selecting pants over shorts for cold weather, "
+                    "or selecting formal items for formal occasions. "
+                    "IMPORTANT: Select only ONE item for each clothing type (e.g., one shirt, one pair of pants, one jacket, etc.). "
+                    "Your response MUST strictly adhere to the specified JSON format."
                 )
             },
             {
                 "role": "user",
                 "content": f"""
-                    Use the following tokens and database to identify suitable items:
+                    Use the following tokens and database to identify the most suitable clothing items:
 
                     ### Tokens:
                     {json.dumps(tokens)}
@@ -98,18 +108,28 @@ def model2_select_items(tokens, database, model='Meta-Llama-3.1-70B-Instruct'):
                     {json.dumps(database)}
 
                     ### Instructions:
-                    Analyze the database. Select items where the AI analysis aligns with the tokens provided. 
-                    Return the output in this format:
+                    - Analyze the database and match clothing items with the given tokens.
+                    - Select only ONE item per clothing type (e.g., one shirt, one pair of pants, one jacket).
+                    - Be flexible and adaptive in your choices. For example:
+                        - Prioritize warm clothing (e.g., sweaters, jackets, pants) for cold weather.
+                        - Choose lightweight and breathable clothing (e.g., t-shirts, shorts) for warm weather.
+                        - Prioritize formal clothing (e.g., suits, dresses) for formal occasions.
+                    - Consider additional preferences or requirements specified in the tokens.
+                    - Avoid selecting multiple items of the same type (e.g., do not select two shirts or two pants).
+                    - Ensure the selections complement each other to form a cohesive outfit.
+
+                    Return the output in this JSON format:
                     [
-                        {{"<item_id>":"<item description>"}},
+                        {{"<item_id>": "<item description>"}},
                         ...
                     ]
-                    Do not include any additional text.
+                    Do not include any additional text or explanations.
 
                     ### Example Response Format:
                     [
-                        {{"101":"shirt"}},
-                        {{"102":"pants"}}
+                        {{"101": "shirt"}},
+                        {{"102": "pants"}},
+                        {{"103": "jacket"}}
                     ]
                 """
             }
