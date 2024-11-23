@@ -5,6 +5,63 @@ import base64
 
 class WardrobeUI:
     @staticmethod
+    def inject_vertical_camera_css():
+        """Inject CSS for vertical camera layout"""
+        st.markdown("""
+            <style>
+            /* Target all camera input containers */
+            div.css-1lsmgbg.e1fqkh3o3 { /* This class may vary; adjust accordingly */
+                background-color: #1E1E1E !important;
+                border-radius: 10px !important;
+                padding: 0 !important;
+                margin: 0 auto !important; /* Center the camera */
+                width: 480px !important;
+                height: 640px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+            }
+
+            /* Video feed */
+            div.css-1lsmgbg.e1fqkh3o3 video {
+                transform: rotate(90deg) !important; /* Rotate video feed */
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: cover !important;
+            }
+
+            /* Captured image */
+            div.css-1lsmgbg.e1fqkh3o3 img {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: contain !important;
+                background-color: #1E1E1E !important;
+            }
+
+            /* Clear photo button section */
+            div.css-1lsmgbg.e1fqkh3o3 div {
+                position: absolute !important;
+                bottom: 0 !important;
+                width: 100% !important;
+                background-color: rgba(0,0,0,0.7) !important;
+                padding: 8px !important;
+                border-radius: 0 0 10px 10px !important;
+            }
+
+            /* Center the camera in the page */
+            [data-testid="stHorizontalBlock"] {
+                justify-content: center !important;
+                background-color: transparent !important;
+            }
+
+            /* Remove any extra padding/margin */
+            .stApp {
+                margin: 0 auto !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
+    @staticmethod
     def render_card_container():
         """Add CSS styling for the wardrobe cards"""
         st.markdown("""
@@ -179,6 +236,7 @@ class WardrobeUI:
     @staticmethod
     def render_wardrobe_grid(items, base64_to_image, on_add_view):
         """Render the updated wardrobe grid dynamically with precise column management"""
+        WardrobeUI.inject_vertical_camera_css()
         WardrobeUI.render_card_container()  # Include necessary CSS styles
         
         # Render the title
@@ -277,9 +335,14 @@ class WardrobeUI:
     @staticmethod
     def render_add_view_modal(item, on_capture):
         """Render the add view modal"""
+        WardrobeUI.inject_vertical_camera_css()
         st.markdown("### 📸 Add New View")
         st.markdown(f"Adding another view for: **{item.get('name', item['type'])}**")
         
-        camera = st.camera_input("Take another photo", key=f"camera_view_{item['id']}")
+        camera = st.camera_input(
+            "Take another photo", 
+            key=f"camera_view_{item['id']}",
+            label_visibility="hidden"  # Hide the label for cleaner look
+        )
         if camera:
             on_capture(camera)

@@ -326,6 +326,9 @@ class WardrobeTracker:
 
     def display_wardrobe_grid(self):
         """Display wardrobe items using the UI components"""
+        if 'camera_initialized' not in st.session_state:
+            st.session_state.camera_initialized = False
+        WardrobeUI.inject_vertical_camera_css()
         # Combine items and outfits, include 'collection' key to identify source
         all_items = (
             [{"collection": "items", **item} for item in self.database["items"]] +
